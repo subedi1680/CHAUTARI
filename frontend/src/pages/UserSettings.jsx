@@ -2,7 +2,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { useState } from 'react';
 
 function UserSettings() {
-  const [avatar, setAvatar] = useState('https://icons.veryicon.com/png/o/miscellaneous/standard/avatar-15.png'); // Default avatar
+  const [avatar, setAvatar] = useState('https://icons.veryicon.com/png/o/miscellaneous/standard/avatar-15.png');
   const [name, setName] = useState('Your Name');
   const [email, setEmail] = useState('_____@example.com');
   const [bio, setBio] = useState('Your bio goes here.');
@@ -11,7 +11,7 @@ function UserSettings() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const [activeTab, setActiveTab] = useState('profile'); // Track the active tab
+  const [activeTab, setActiveTab] = useState('profile');
 
   const handleAvatarChange = (event) => {
     const file = event.target.files[0];
@@ -110,12 +110,11 @@ function UserSettings() {
           </>
         )}
 
-        {/* Other Settings Section */}
         {activeTab === 'other' && (
           <>
             <h4>Other Settings</h4>
             <div className="card p-4 shadow-sm" style={{ maxWidth: '600px' }}>
-              {/* Current Password Section */}
+
               <div className="mb-3">
                 <label className="form-label">Current Password</label>
                 <input
@@ -126,7 +125,6 @@ function UserSettings() {
                 />
               </div>
 
-              {/* New Password Section */}
               <div className="mb-3">
                 <label className="form-label">New Password</label>
                 <input
@@ -146,7 +144,6 @@ function UserSettings() {
                 />
               </div>
 
-              {/* Action Buttons */}
               <div className="d-flex justify-content-between">
                 <button type="button" className="btn btn-outline-secondary">Cancel</button>
                 <button type="submit" className="btn btn-dark">Save Changes</button>

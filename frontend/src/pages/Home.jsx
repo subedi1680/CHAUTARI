@@ -2,7 +2,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { useState } from 'react';
 
 function HomePage() {
-  const [activeTab, setActiveTab] = useState('posts'); // To switch between feed and other sections
+  const [activeTab, setActiveTab] = useState('posts');
 
   const posts = [
     {
