@@ -11,6 +11,7 @@ function Register() {
     dateOfBirth: "",
   });
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -20,37 +21,54 @@ function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+    if (!formData.day || !formData.month || !formData.year) {
+      setError("Please select your date of birth.");
       return;
     }
+
+    const formattedDOB = `${formData.year}-${formData.month.padStart(
+      2,
+      "0"
+    )}-${formData.day.padStart(2, "0")}`;
 
     try {
       const response = await fetch("http://localhost:5000/api/auth/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          dateOfBirth: formattedDOB,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error("Registration failed");
+        const errorData = await response.json();
+        throw new Error(errorData.msg || "Registration failed");
       }
 
-      navigate("/login"); // Navigate to login page
+      setSuccessMessage("Registration successful! Redirecting to login...");
+      setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
       setError(err.message);
     }
   };
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+    <div
+      className="d-flex justify-content-center align-items-center vh-100 bg-light"
+      style={{ paddingTop: "100px" }}
+    >
       <div className="container text-center">
         <h1 className="mb-4">CHAUTARI</h1>
-        <div className="card p-4 shadow-lg" style={{ maxWidth: "400px", margin: "auto" }}>
+        <div
+          className="card p-4 shadow-lg"
+          style={{ maxWidth: "400px", margin: "auto" }}
+        >
           <h2 className="mb-3">Register</h2>
+          {error && <p className="text-danger">{error}</p>}
+          {successMessage && <p className="text-success">{successMessage}</p>}
           <form onSubmit={handleSubmit}>
             <div className="mb-3 text-start">
               <label className="form-label">Username</label>
@@ -58,7 +76,7 @@ function Register() {
                 type="text"
                 className="form-control"
                 name="username"
-                placeholder="Username"
+                placeholder="Enter username"
                 value={formData.username}
                 onChange={handleChange}
                 required
@@ -70,30 +88,86 @@ function Register() {
                 type="email"
                 className="form-control"
                 name="email"
-                placeholder="Email"
+                placeholder="Enter email"
                 value={formData.email}
                 onChange={handleChange}
                 required
               />
             </div>
+
             <div className="mb-3 text-start">
               <label className="form-label">Date of Birth</label>
-              <input
-                type="date"
-                className="form-control"
-                name="dateOfBirth"
-                value={formData.dateOfBirth}
-                onChange={handleChange}
-                required
-              />
+              <div className="d-flex gap-2">
+                <select
+                  className="form-select"
+                  name="day"
+                  value={formData.day}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Day</option>
+                  {[...Array(31)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  className="form-select"
+                  name="month"
+                  value={formData.month}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Month</option>
+                  {[
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                  ].map((month, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  className="form-select"
+                  name="year"
+                  value={formData.year}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Year</option>
+                  {[...Array(100)].map((_, i) => {
+                    const year = new Date().getFullYear() - i;
+                    return (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
+
             <div className="mb-3 text-start">
               <label className="form-label">Password</label>
               <input
                 type="password"
                 className="form-control"
                 name="password"
-                placeholder="Password"
+                placeholder="Enter password"
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -105,15 +179,16 @@ function Register() {
                 type="password"
                 className="form-control"
                 name="confirmPassword"
-                placeholder="Confirm Password"
+                placeholder="Confirm password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
               />
             </div>
-            {error && <p className="text-danger">{error}</p>}
             <div className="d-grid gap-2 mt-3">
-              <button type="submit" className="btn btn-dark">Register</button>
+              <button type="submit" className="btn btn-dark">
+                Register
+              </button>
             </div>
           </form>
           <div className="mt-3">

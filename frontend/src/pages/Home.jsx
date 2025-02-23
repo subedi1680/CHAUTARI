@@ -1,115 +1,129 @@
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { useState } from 'react';
+import "bootstrap/dist/css/bootstrap.min.css";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 function HomePage() {
-  const [activeTab, setActiveTab] = useState('posts');
+  const [activeTab, setActiveTab] = useState("posts");
+  const [posts, setPosts] = useState([]);
+  const navigate = useNavigate();
 
-  const posts = [
-    {
-      id: 1,
-      user: 'Jane Doe',
-      title: 'What is the best programming language for web development?',
-      content: 'I am new to web development. Can anyone suggest the best programming language to start with?',
-      upvotes: 20,
-      comments: 5,
-    },
-    {
-      id: 2,
-      user: 'John Smith',
-      title: 'How do you stay motivated to learn coding?',
-      content: 'Sometimes I get discouraged. Any tips to stay motivated while learning programming?',
-      upvotes: 35,
-      comments: 12,
-    },
-  ];
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const response = await fetch("http://localhost:5000/api/posts");
+        if (!response.ok) {
+          throw new Error("Failed to fetch posts");
+        }
+        const data = await response.json();
+
+        if (!Array.isArray(data)) {
+          throw new Error("Invalid response format from server");
+        }
+
+        const sortedPosts = data.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setPosts(sortedPosts);
+      } catch (err) {
+        console.error("Failed to fetch posts:", err);
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  const handlePostClick = (postId) => {
+    if (!postId || postId === "undefined") {
+      console.error("Invalid postId:", postId);
+      return;
+    }
+    navigate(`/post/${postId}`);
+  };
 
   return (
     <div className="d-flex vh-100">
-      {/* Sidebar */}
-      <div className="p-3 border-end bg-light" style={{ width: '250px' }}>
+      <div className="p-3 border-end bg-light" style={{ width: "250px" }}>
         <h5 className="fw-bold">Home Page</h5>
         <ul className="nav flex-column">
           <li className="nav-item">
-            <a 
-              href="#"
-              className={`nav-link ${activeTab === 'posts' ? 'active' : ''}`}
-              onClick={() => setActiveTab('posts')}
+            <button
+              className={`nav-link ${activeTab === "posts" ? "active" : ""}`}
+              onClick={() => setActiveTab("posts")}
+              style={{
+                border: "none",
+                background: "none",
+                padding: "5px",
+                cursor: "pointer",
+              }}
             >
-              Posts Feed
-            </a>
+              Feed
+            </button>
           </li>
           <li className="nav-item">
-            <a 
-              href="#"
-              className={`nav-link ${activeTab === 'questions' ? 'active' : ''}`}
-              onClick={() => setActiveTab('questions')}
-            >
-              Questions
-            </a>
-          </li>
-          <li className="nav-item">
-            <a 
-              href="#"
-              className={`nav-link ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => setActiveTab('profile')}
+            <button
+              className={`nav-link ${activeTab === "profile" ? "active" : ""}`}
+              onClick={() => setActiveTab("profile")}
+              style={{
+                border: "none",
+                background: "none",
+                padding: "5px",
+                cursor: "pointer",
+              }}
             >
               Profile
-            </a>
+            </button>
           </li>
         </ul>
       </div>
 
-      {/* Main Content */}
       <div className="flex-grow-1 p-4">
-        {activeTab === 'posts' && (
+        {activeTab === "posts" && (
           <>
             <h4>Posts Feed</h4>
-            <div className="card p-4 shadow-sm" style={{ maxWidth: '800px' }}>
-              {posts.map((post) => (
-                <div className="mb-4" key={post.id}>
-                  <div className="d-flex justify-content-between">
-                    <h5>{post.title}</h5>
-                    <div className="d-flex align-items-center">
-                      <span className="me-2">Upvotes: {post.upvotes}</span>
-                      <button className="btn btn-outline-primary btn-sm">Upvote</button>
+            <div style={{ maxWidth: "800px" }}>
+              {posts.length === 0 ? (
+                <p>No posts available.</p>
+              ) : (
+                posts.map((post) => (
+                  <div
+                    className="card mb-4 shadow-sm"
+                    key={post._id || Math.random()}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => handlePostClick(post._id)}
+                  >
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <h5 className="mb-0">{post.title}</h5>
+                        <span className="badge bg-primary">
+                          {post.category || "Uncategorized"}
+                        </span>
+                      </div>
+                      <p className="text-muted small">
+                        by {post.user?.username || "Unknown User"}
+                      </p>
+                      {post.coverImage && (
+                        <img
+                          src={`data:image/jpeg;base64,${post.coverImage}`}
+                          alt="Post Cover"
+                          className="img-fluid mb-3"
+                          style={{ maxHeight: "200px", objectFit: "cover" }}
+                        />
+                      )}
                     </div>
                   </div>
-                  <p className="text-muted">by {post.user}</p>
-                  <p>{post.content}</p>
-                  <div className="d-flex justify-content-between">
-                    <button className="btn btn-outline-secondary btn-sm">Comments ({post.comments})</button>
-                    <button className="btn btn-outline-primary btn-sm">Share</button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </>
         )}
 
-        {activeTab === 'questions' && (
-          <>
-            <h4>Questions</h4>
-            <div className="card p-4 shadow-sm" style={{ maxWidth: '800px' }}>
-              <div className="mb-4">
-                <h5>How to get started with JavaScript?</h5>
-                <p className="text-muted">by Alice</p>
-                <p>Can someone help me with the basic steps to start learning JavaScript for front-end web development?</p>
-                <div className="d-flex justify-content-between">
-                  <button className="btn btn-outline-secondary btn-sm">Answer</button>
-                  <button className="btn btn-outline-primary btn-sm">Upvote</button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {activeTab === 'profile' && (
+        {activeTab === "profile" && (
           <>
             <h4>Your Profile</h4>
-            <div className="card p-4 shadow-sm" style={{ maxWidth: '800px' }}>
-              <h5>Jane Doe</h5>
-              <p>Email: janedoe@example.com</p>
-              <p>Bio: Web developer, passionate about coding and learning new technologies.</p>
+            <div className="card p-4 shadow-sm" style={{ maxWidth: "800px" }}>
+              <h5>Username: </h5>
+              <p>Email: </p>
+              <p>Bio: </p>
             </div>
           </>
         )}
