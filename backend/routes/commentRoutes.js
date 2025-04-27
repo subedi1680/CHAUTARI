@@ -3,7 +3,7 @@ const router = express.Router();
 const commentController = require('../controllers/commentController');
 const authenticate = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
-const multer = require('multer'); // ✅ Import multer for error instance checking
+const multer = require('multer');
 
 // Middleware to handle multer errors
 const handleMulterError = (req, res, next) => {

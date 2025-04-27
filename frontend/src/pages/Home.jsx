@@ -71,7 +71,8 @@ function HomePage() {
         prevPosts.map((post) => {
           if (post._id === postId) {
             let updatedCount = post.commentCount || 0;
-            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1);
+            updatedCount =
+              action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1);
             return { ...post, commentCount: updatedCount };
           }
           return post;
@@ -88,8 +89,8 @@ function HomePage() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (response.ok) {
         const userData = await response.json();
@@ -215,7 +216,8 @@ function HomePage() {
                         </span>
                       </div>
                       <p className="text-muted small">
-                        by {post.user?.username || "Unknown User"} • {formatTimeAgo(post.createdAt)}
+                        by {post.user?.username || "Unknown User"} •{" "}
+                        {formatTimeAgo(post.createdAt)}
                       </p>
                       {post.coverImage && (
                         <img
