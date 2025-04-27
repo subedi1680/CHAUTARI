@@ -20,6 +20,14 @@ const userSchema = mongoose.Schema({
     type: Date,
     required: true,
   },
+  categories: {
+    type: [String], // Array of selected categories
+    default: [],
+  },
+  categorySetupCompleted: {
+    type: Boolean,
+    default: false, // Defaults to false if not set
+  },
 });
 
 userSchema.methods.matchPassword = async function (enteredPassword) {

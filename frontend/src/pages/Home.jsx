@@ -5,7 +5,6 @@ import { io } from "socket.io-client";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// ➡️ Added
 const formatTimeAgo = (dateString) => {
   const date = new Date(dateString);
   const seconds = Math.floor((new Date() - date) / 1000);
@@ -32,12 +31,35 @@ function HomePage() {
   const [activeTab, setActiveTab] = useState("posts");
   const [posts, setPosts] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
+  const [selectedCategories, setSelectedCategories] = useState([]); // State for selected categories
   const navigate = useNavigate();
 
   const token = sessionStorage.getItem("token");
   const userId = sessionStorage.getItem("userId");
 
+  // Fetch the selected categories for the user
+  const fetchUserCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const userData = await response.json();
+        setSelectedCategories(userData.categories); // Set selected categories from user profile
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+    }
+  };
+
   useEffect(() => {
+    // Fetch user categories on page load
+    if (userId && token) {
+      fetchUserCategories();
+    }
+
     const fetchPosts = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/posts`);
@@ -48,7 +70,13 @@ function HomePage() {
         if (!Array.isArray(data)) {
           throw new Error("Invalid response format from server");
         }
-        const sortedPosts = data.sort(
+
+        // Filter posts based on selected categories
+        const filteredPosts = data.filter((post) =>
+          selectedCategories.length === 0 || selectedCategories.includes(post.category)
+        );
+
+        const sortedPosts = filteredPosts.sort(
           (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
         );
         setPosts(sortedPosts);
@@ -83,7 +111,7 @@ function HomePage() {
     return () => {
       socket.disconnect();
     };
-  }, [activeTab]);
+  }, [activeTab, selectedCategories]); // Trigger re-fetch when selected categories change
 
   const fetchUserProfile = async () => {
     try {

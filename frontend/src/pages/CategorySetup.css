@@ -1,0 +1,33 @@
+/* styles.css or in your component's style section */
+.category-card {
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    transition: all 0.3s ease-in-out;
+  }
+  
+  .category-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .similar-categories ul {
+    list-style-type: none;
+    padding: 0;
+  }
+  
+  .similar-categories li {
+    margin-bottom: 8px;
+  }
+  
+  .similar-categories li .form-check {
+    margin-left: 20px;
+  }
+  
+  .btn-dark {
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+  }
+  

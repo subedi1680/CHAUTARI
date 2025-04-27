@@ -68,6 +68,7 @@ const loginUser = async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        categorySetupCompleted: user.categorySetupCompleted, // Include categorySetupCompleted flag
       },
     };
 
@@ -77,7 +78,14 @@ const loginUser = async (req, res) => {
       { expiresIn: "1h" },
       (err, token) => {
         if (err) throw err;
-        res.json({ token, user: { id: user.id, username: user.username } });
+        res.json({
+          token,
+          user: {
+            id: user.id,
+            username: user.username,
+            categorySetupCompleted: user.categorySetupCompleted,
+          },
+        });
       }
     );
   } catch (err) {
@@ -85,5 +93,4 @@ const loginUser = async (req, res) => {
     res.status(500).json({ msg: "Server Error" });
   }
 };
-
 module.exports = { registerUser, loginUser };
