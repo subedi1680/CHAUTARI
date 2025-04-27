@@ -3,16 +3,12 @@ const Post = require("../models/Post");
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-// @desc    Create a new post
-// @route   POST /api/posts
-// @access  Private
+// Create a new post
 const createPost = async (req, res) => {
   const { title, content, category } = req.body;
 
   if (!title || !content || !category) {
-    return res
-      .status(400)
-      .json({ msg: "Title, category, and content are required" });
+    return res.status(400).json({ msg: "Title, category, and content are required" });
   }
 
   try {
@@ -34,14 +30,17 @@ const createPost = async (req, res) => {
   }
 };
 
-// @desc    Get all posts
-// @route   GET /api/posts
-// @access  Public
+// Get all posts
 const getPosts = async (req, res) => {
   try {
     const posts = await Post.find()
       .populate("user", ["username"])
+      .populate({
+        path: "comments",
+        select: "_id",
+      })
       .sort({ createdAt: -1 });
+
     res.json(posts);
   } catch (err) {
     console.error("Failed to fetch posts:", err.message);
@@ -49,9 +48,7 @@ const getPosts = async (req, res) => {
   }
 };
 
-// @desc    Get a single post by ID
-// @route   GET /api/posts/:id
-// @access  Public
+// Get a single post by ID
 const getPostById = async (req, res) => {
   const { id } = req.params;
 
@@ -60,7 +57,13 @@ const getPostById = async (req, res) => {
   }
 
   try {
-    const post = await Post.findById(id).populate("user", ["username"]);
+    const post = await Post.findById(id)
+      .populate("user", ["username"])
+      .populate({
+        path: "comments",
+        select: "_id",
+      });
+
     if (!post) {
       return res.status(404).json({ msg: "Post not found" });
     }
@@ -71,9 +74,7 @@ const getPostById = async (req, res) => {
   }
 };
 
-// @desc    Delete a post
-// @route   DELETE /api/posts/:id
-// @access  Private
+// Delete a post
 const deletePost = async (req, res) => {
   const { id } = req.params;
 
@@ -99,9 +100,7 @@ const deletePost = async (req, res) => {
   }
 };
 
-// @desc    Update a post (Title, Content, Category, and Optional Image)
-// @route   PUT /api/posts/:id
-// @access  Private
+// Update a post
 const updatePost = async (req, res) => {
   const { id } = req.params;
   if (!isValidObjectId(id)) {
@@ -121,13 +120,12 @@ const updatePost = async (req, res) => {
     if (req.body.title) post.title = req.body.title;
     if (req.body.content) post.content = req.body.content;
     if (req.body.category) post.category = req.body.category;
-
     if (req.file) {
       post.coverImage = req.file.buffer.toString("base64");
     }
 
     post.edited = true;
-    post.updatedAt = Date.now();
+    post.editedAt = Date.now();
 
     await post.save();
     res.json({ msg: "Post updated successfully", post });
@@ -137,4 +135,118 @@ const updatePost = async (req, res) => {
   }
 };
 
-module.exports = { createPost, getPosts, getPostById, deletePost, updatePost };
+// Like or unlike a post
+const likePost = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ msg: "Invalid Post ID" });
+  }
+
+  try {
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" });
+    }
+
+    if (post.likedBy.includes(userId)) {
+      post.likes--;
+      post.likedBy.pull(userId);
+    } else {
+      if (post.dislikedBy.includes(userId)) {
+        post.dislikes--;
+        post.dislikedBy.pull(userId);
+      }
+      post.likes++;
+      post.likedBy.push(userId);
+    }
+
+    await post.save();
+
+    // Re-fetch the updated post with populated user
+    const updatedPost = await Post.findById(post._id)
+      .populate("user", ["username"])
+      .populate({
+        path: "comments",
+        select: "_id",
+      });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("postReaction", {
+        postId: post._id,
+        likes: post.likes,
+        dislikes: post.dislikes,
+      });
+    }
+
+    res.json(updatedPost);
+  } catch (err) {
+    console.error("Error in likePost:", err);
+    res.status(500).json({ msg: "Server Error" });
+  }
+};
+
+// Dislike or undislike a post
+const dislikePost = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ msg: "Invalid Post ID" });
+  }
+
+  try {
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" });
+    }
+
+    if (post.dislikedBy.includes(userId)) {
+      post.dislikes--;
+      post.dislikedBy.pull(userId);
+    } else {
+      if (post.likedBy.includes(userId)) {
+        post.likes--;
+        post.likedBy.pull(userId);
+      }
+      post.dislikes++;
+      post.dislikedBy.push(userId);
+    }
+
+    await post.save();
+
+    // Re-fetch the updated post with populated user
+    const updatedPost = await Post.findById(post._id)
+      .populate("user", ["username"])
+      .populate({
+        path: "comments",
+        select: "_id",
+      });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("postReaction", {
+        postId: post._id,
+        likes: post.likes,
+        dislikes: post.dislikes,
+      });
+    }
+
+    res.json(updatedPost);
+  } catch (err) {
+    console.error("Error in dislikePost:", err);
+    res.status(500).json({ msg: "Server Error" });
+  }
+};
+
+module.exports = {
+  createPost,
+  getPosts,
+  getPostById,
+  deletePost,
+  updatePost,
+  likePost,
+  dislikePost,
+};
