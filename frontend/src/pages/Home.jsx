@@ -1,8 +1,32 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// ➡️ Added
+const formatTimeAgo = (dateString) => {
+  const date = new Date(dateString);
+  const seconds = Math.floor((new Date() - date) / 1000);
+
+  const intervals = [
+    { label: "year", seconds: 31536000 },
+    { label: "month", seconds: 2592000 },
+    { label: "day", seconds: 86400 },
+    { label: "hour", seconds: 3600 },
+    { label: "minute", seconds: 60 },
+    { label: "second", seconds: 1 },
+  ];
+
+  for (const interval of intervals) {
+    const count = Math.floor(seconds / interval.seconds);
+    if (count > 0) {
+      return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`;
+    }
+  }
+  return "just now";
+};
 
 function HomePage() {
   const [activeTab, setActiveTab] = useState("posts");
@@ -35,10 +59,29 @@ function HomePage() {
 
     fetchPosts();
 
-    // Fetch user profile if on profile tab and user is logged in
     if (activeTab === "profile" && token && userId) {
       fetchUserProfile();
     }
+
+    // ➡️ Added socket listener
+    const socket = io(API_BASE_URL, { withCredentials: true });
+
+    socket.on("commentCountUpdated", ({ postId, action }) => {
+      setPosts((prevPosts) =>
+        prevPosts.map((post) => {
+          if (post._id === postId) {
+            let updatedCount = post.commentCount || 0;
+            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1);
+            return { ...post, commentCount: updatedCount };
+          }
+          return post;
+        })
+      );
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [activeTab]);
 
   const fetchUserProfile = async () => {
@@ -81,7 +124,6 @@ function HomePage() {
 
   const handleLike = async (postId) => {
     try {
-      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
         method: "POST",
         headers: {
@@ -98,16 +140,12 @@ function HomePage() {
 
   const handleDislike = async (postId) => {
     try {
-      const token = sessionStorage.getItem("token");
-      const res = await fetch(
-        `${API_BASE_URL}/api/posts/${postId}/dislike`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!res.ok) throw new Error("Failed to dislike post");
       const updatedPost = await res.json();
       updateReactions(postId, updatedPost);
@@ -177,7 +215,7 @@ function HomePage() {
                         </span>
                       </div>
                       <p className="text-muted small">
-                        by {post.user?.username || "Unknown User"}
+                        by {post.user?.username || "Unknown User"} • {formatTimeAgo(post.createdAt)}
                       </p>
                       {post.coverImage && (
                         <img

@@ -6,6 +6,26 @@ import { io } from "socket.io-client";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const socket = io(API_BASE_URL, { withCredentials: true });
 
+const formatTimeAgo = (dateString) => {
+  const date = new Date(dateString);
+  const seconds = Math.floor((new Date() - date) / 1000);
+  const intervals = [
+    { label: "year", seconds: 31536000 },
+    { label: "month", seconds: 2592000 },
+    { label: "day", seconds: 86400 },
+    { label: "hour", seconds: 3600 },
+    { label: "minute", seconds: 60 },
+    { label: "second", seconds: 1 },
+  ];
+  for (const interval of intervals) {
+    const count = Math.floor(seconds / interval.seconds);
+    if (count > 0) {
+      return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`;
+    }
+  }
+  return "just now";
+};
+
 function PostDetails() {
   const { postId } = useParams();
   const [post, setPost] = useState(null);
@@ -21,26 +41,6 @@ function PostDetails() {
 
   const loggedInUserId = sessionStorage.getItem("userId");
   const token = sessionStorage.getItem("token");
-
-  const formatTimeAgo = (dateString) => {
-    const date = new Date(dateString);
-    const seconds = Math.floor((new Date() - date) / 1000);
-    const intervals = [
-      { label: "year", seconds: 31536000 },
-      { label: "month", seconds: 2592000 },
-      { label: "day", seconds: 86400 },
-      { label: "hour", seconds: 3600 },
-      { label: "minute", seconds: 60 },
-      { label: "second", seconds: 1 },
-    ];
-    for (const interval of intervals) {
-      const count = Math.floor(seconds / interval.seconds);
-      if (count >= 1) {
-        return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
-      }
-    }
-    return "Just now";
-  };
 
   useEffect(() => {
     if (!postId || postId === "undefined") {
@@ -154,6 +154,9 @@ function PostDetails() {
       const createdComment = await res.json();
       setComments((prev) => [createdComment, ...prev]);
 
+      // ➡️ Emit commentCount update
+      socket.emit("commentCountUpdated", { postId: postId, action: "add" });
+
       setNewComment("");
       setCommentImage(null);
       if (commentInputRef.current) commentInputRef.current.focus();
@@ -215,8 +218,11 @@ function PostDetails() {
       });
       if (!res.ok) throw new Error("Failed to delete comment");
 
-      // 🔥 Immediately update UI
       setComments((prev) => prev.filter((comment) => comment._id !== commentId));
+
+      // ➡️ Emit commentCount update
+      socket.emit("commentCountUpdated", { postId: postId, action: "remove" });
+
     } catch (err) {
       setError(err.message);
     }
@@ -233,10 +239,9 @@ function PostDetails() {
       });
       if (!res.ok) throw new Error("Failed to delete reply");
 
-      // 🔥 Immediately update UI
       setReplies((prev) => ({
         ...prev,
-        [commentId]: prev[commentId]?.filter((reply) => reply._id !== replyId),
+        [commentId]: prev[commentId]?.filter((r) => r._id !== replyId),
       }));
     } catch (err) {
       console.error(err.message);
@@ -248,6 +253,44 @@ function PostDetails() {
       ...prev,
       [commentId]: { ...prev[commentId], [field]: value },
     }));
+  };
+
+  const updateReactions = (postId, updatedData) => {
+    if (postId === post._id) {
+      setPost((prevPost) => ({
+        ...prevPost,
+        likes: updatedData.likes,
+        dislikes: updatedData.dislikes,
+      }));
+    }
+  };
+
+  const handleLike = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to like post");
+      const updatedPost = await res.json();
+      updateReactions(postId, updatedPost);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDislike = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to dislike post");
+      const updatedPost = await res.json();
+      updateReactions(postId, updatedPost);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   if (error) return <p className="text-danger text-center mt-5">{error}</p>;
@@ -266,13 +309,33 @@ function PostDetails() {
 
         <h2 className="fw-bold mt-4">{post.title}</h2>
 
+        <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
+
         {post.coverImage && (
           <img src={`data:image/jpeg;base64,${post.coverImage}`} className="img-fluid rounded my-3" />
         )}
 
         <p style={{ fontSize: 18 }}>{post.content}</p>
+
+        <div className="d-flex justify-content-start align-items-center gap-3 mt-3">
+          <button
+            className="btn btn-outline-success btn-sm"
+            onClick={handleLike}
+            disabled={!token}
+          >
+            👍 {post.likes || 0}
+          </button>
+          <button
+            className="btn btn-outline-danger btn-sm"
+            onClick={handleDislike}
+            disabled={!token}
+          >
+            👎 {post.dislikes || 0}
+          </button>
+        </div>
       </div>
 
+      {/* Comments */}
       <div className="card shadow p-4" style={{ maxWidth: "800px", width: "100%" }}>
         <h4 className="mb-4">Comments</h4>
 
@@ -335,9 +398,6 @@ function PostDetails() {
                   )}
                 </div>
                 <p className="mb-1">{reply.content}</p>
-                {reply.image && (
-                  <img src={reply.image} alt="Reply" className="img-fluid rounded mt-1" style={{ maxWidth: "250px" }} />
-                )}
               </div>
             ))}
 
