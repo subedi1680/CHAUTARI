@@ -2,6 +2,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
+import "./PostDetails.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const socket = io(API_BASE_URL, { withCredentials: true });
@@ -36,6 +37,9 @@ function PostDetails() {
   const [commentImage, setCommentImage] = useState(null);
   const [replyInputs, setReplyInputs] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [imagePreviewSrc, setImagePreviewSrc] = useState(null);
+
   const commentInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -154,7 +158,7 @@ function PostDetails() {
       const createdComment = await res.json();
       setComments((prev) => [createdComment, ...prev]);
 
-      // ➡️ Emit commentCount update
+      // Emit commentCount update
       socket.emit("commentCountUpdated", { postId: postId, action: "add" });
 
       setNewComment("");
@@ -220,9 +224,8 @@ function PostDetails() {
 
       setComments((prev) => prev.filter((comment) => comment._id !== commentId));
 
-      // ➡️ Emit commentCount update
+      // Emit commentCount update
       socket.emit("commentCountUpdated", { postId: postId, action: "remove" });
-
     } catch (err) {
       setError(err.message);
     }
@@ -253,6 +256,16 @@ function PostDetails() {
       ...prev,
       [commentId]: { ...prev[commentId], [field]: value },
     }));
+  };
+
+  const handleImageClick = (imageSrc) => {
+    setImagePreviewSrc(imageSrc);
+    setShowImagePreview(true);
+  };
+
+  const closeImagePreview = () => {
+    setShowImagePreview(false);
+    setImagePreviewSrc(null);
   };
 
   const updateReactions = (postId, updatedData) => {
@@ -312,7 +325,12 @@ function PostDetails() {
         <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
 
         {post.coverImage && (
-          <img src={`data:image/jpeg;base64,${post.coverImage}`} className="img-fluid rounded my-3" />
+          <img
+            src={`data:image/jpeg;base64,${post.coverImage}`}
+            className="img-fluid rounded my-3 preview-img"
+            onClick={() => handleImageClick(`data:image/jpeg;base64,${post.coverImage}`)}
+            style={{ cursor: "pointer" }}
+          />
         )}
 
         <p style={{ fontSize: 18 }}>{post.content}</p>
@@ -381,7 +399,13 @@ function PostDetails() {
 
             <p>{comment.content}</p>
             {comment.image && (
-              <img src={comment.image} alt="Comment" className="img-fluid rounded my-2" style={{ maxWidth: "300px" }} />
+              <img
+                src={comment.image}
+                alt="Comment"
+                className="img-fluid rounded my-2 preview-img"
+                style={{ maxWidth: "500px", cursor: "pointer" }}
+                onClick={() => handleImageClick(comment.image)}
+              />
             )}
 
             {replies[comment._id]?.map((reply) => (
@@ -398,6 +422,15 @@ function PostDetails() {
                   )}
                 </div>
                 <p className="mb-1">{reply.content}</p>
+                {reply.image && (
+                  <img
+                    src={reply.image}
+                    alt="Reply"
+                    className="img-fluid rounded my-2 preview-img"
+                    style={{ maxWidth: "500px", cursor: "pointer" }}
+                    onClick={() => handleImageClick(reply.image)}
+                  />
+                )}
               </div>
             ))}
 
@@ -422,6 +455,43 @@ function PostDetails() {
           </div>
         ))}
       </div>
+
+      {/* Modal for Image Preview */}
+      {showImagePreview && (
+        <div
+          className="modal show"
+          tabIndex="-1"
+          style={{
+            display: "block",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            zIndex: 1050,
+            backgroundColor: "rgba(0, 0, 0, 0.5)", // Optional: background dimming effect
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <button
+                  type="button"
+                  className="btn-close"
+                  aria-label="Close"
+                  onClick={closeImagePreview}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <img
+                  src={imagePreviewSrc}
+                  className="img-fluid zoomable"
+                  alt="Preview"
+                  style={{ cursor: "zoom-in", maxHeight: "100vh", objectFit: "contain" }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
