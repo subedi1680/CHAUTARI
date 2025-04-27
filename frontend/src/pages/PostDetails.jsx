@@ -1,5 +1,3 @@
-// frontend/src/pages/PostDetails.jsx
-
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -13,32 +11,42 @@ function PostDetails() {
   const [post, setPost] = useState(null);
   const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
+  const [replies, setReplies] = useState({});
   const [newComment, setNewComment] = useState("");
   const [commentImage, setCommentImage] = useState(null);
+  const [replyInputs, setReplyInputs] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const commentInputRef = useRef(null);
   const navigate = useNavigate();
 
   const loggedInUserId = sessionStorage.getItem("userId");
   const token = sessionStorage.getItem("token");
-  const username = sessionStorage.getItem("username");
+
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const seconds = Math.floor((new Date() - date) / 1000);
+    const intervals = [
+      { label: "year", seconds: 31536000 },
+      { label: "month", seconds: 2592000 },
+      { label: "day", seconds: 86400 },
+      { label: "hour", seconds: 3600 },
+      { label: "minute", seconds: 60 },
+      { label: "second", seconds: 1 },
+    ];
+    for (const interval of intervals) {
+      const count = Math.floor(seconds / interval.seconds);
+      if (count >= 1) {
+        return `${count} ${interval.label}${count > 1 ? "s" : ""} ago`;
+      }
+    }
+    return "Just now";
+  };
 
   useEffect(() => {
     if (!postId || postId === "undefined") {
       setError("Invalid Post ID");
       return;
     }
-
-    const fetchPost = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`);
-        if (!res.ok) throw new Error("Failed to fetch post");
-        const data = await res.json();
-        setPost(data);
-      } catch (err) {
-        setError(err.message);
-      }
-    };
 
     fetchPost();
     fetchComments();
@@ -51,24 +59,49 @@ function PostDetails() {
 
     socket.on("newComment", (comment) => {
       if (comment.post === postId) {
-        setComments((prevComments) => [comment, ...prevComments]);
+        setComments((prev) => [comment, ...prev]);
       }
     });
 
     socket.on("deleteComment", (data) => {
       if (data.postId === postId) {
-        setComments((prevComments) =>
-          prevComments.filter((comment) => comment._id !== data.commentId)
-        );
+        setComments((prev) => prev.filter((c) => c._id !== data.commentId));
       }
+    });
+
+    socket.on("newReply", (reply) => {
+      setReplies((prev) => ({
+        ...prev,
+        [reply.comment]: [reply, ...(prev[reply.comment] || [])],
+      }));
+    });
+
+    socket.on("deleteReply", ({ replyId, commentId }) => {
+      setReplies((prev) => ({
+        ...prev,
+        [commentId]: prev[commentId]?.filter((r) => r._id !== replyId),
+      }));
     });
 
     return () => {
       socket.off("postReaction");
       socket.off("newComment");
       socket.off("deleteComment");
+      socket.off("newReply");
+      socket.off("deleteReply");
     };
   }, [postId]);
+
+  const fetchPost = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`);
+      if (!res.ok) throw new Error("Failed to fetch post");
+      const data = await res.json();
+      setPost(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const fetchComments = async () => {
     try {
@@ -76,55 +109,54 @@ function PostDetails() {
       if (!res.ok) throw new Error("Failed to fetch comments");
       const data = await res.json();
       setComments(data);
+      data.forEach((comment) => fetchReplies(comment._id));
     } catch (err) {
       console.error("Error fetching comments:", err);
     }
   };
 
-  // ⭐ Corrected: Submit comment dynamically without reloading
+  const fetchReplies = async (commentId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`);
+      if (!res.ok) throw new Error("Failed to fetch replies");
+      const data = await res.json();
+      setReplies((prev) => ({ ...prev, [commentId]: data }));
+    } catch (err) {
+      console.error("Error fetching replies:", err);
+    }
+  };
+
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
-
     if (!token) {
       setError("You must be logged in to comment.");
       return;
     }
-
     if (!newComment.trim() && !commentImage) {
       setError("Cannot post empty comment.");
       return;
     }
 
     setIsLoading(true);
-
     try {
       const formData = new FormData();
       formData.append("content", newComment);
-      if (commentImage) {
-        formData.append("image", commentImage);
-      }
+      if (commentImage) formData.append("image", commentImage);
 
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
       if (!res.ok) throw new Error("Failed to post comment");
 
       const createdComment = await res.json();
-
-      // Dynamically add the new comment to the top
-      setComments((prevComments) => [createdComment, ...prevComments]);
+      setComments((prev) => [createdComment, ...prev]);
 
       setNewComment("");
       setCommentImage(null);
-      if (commentInputRef.current) {
-        commentInputRef.current.focus();
-      }
-
+      if (commentInputRef.current) commentInputRef.current.focus();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -132,246 +164,203 @@ function PostDetails() {
     }
   };
 
+  const handleReplySubmit = async (e, commentId) => {
+    e.preventDefault();
+    if (!token) {
+      setError("You must be logged in to reply.");
+      return;
+    }
+
+    const replyText = replyInputs[commentId]?.text || "";
+    const replyImage = replyInputs[commentId]?.image || null;
+
+    if (!replyText.trim() && !replyImage) {
+      setError("Cannot post empty reply.");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("content", replyText);
+      if (replyImage) formData.append("image", replyImage);
+
+      const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Failed to post reply");
+
+      const createdReply = await res.json();
+      setReplies((prev) => ({
+        ...prev,
+        [commentId]: [createdReply, ...(prev[commentId] || [])],
+      }));
+
+      setReplyInputs((prev) => ({ ...prev, [commentId]: { text: "", image: null } }));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleDeleteComment = async (commentId) => {
     if (!token) return;
+    if (!window.confirm("Delete this comment?")) return;
 
-    if (window.confirm("Are you sure you want to delete this comment?")) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Failed to delete comment");
-      } catch (err) {
-        setError(err.message);
-      }
-    }
-  };
-
-  const handleLike = async () => {
-    if (!token) {
-      setError("You must be logged in to like a post.");
-      return;
-    }
     try {
-      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
-        method: "POST",
+      const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+        method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Error liking the post");
-      const updatedPost = await res.json();
-      setPost(updatedPost);
+      if (!res.ok) throw new Error("Failed to delete comment");
+
+      // 🔥 Immediately update UI
+      setComments((prev) => prev.filter((comment) => comment._id !== commentId));
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleDislike = async () => {
-    if (!token) {
-      setError("You must be logged in to dislike a post.");
-      return;
-    }
+  const handleDeleteReply = async (replyId, commentId) => {
+    if (!token) return;
+    if (!window.confirm("Delete this reply?")) return;
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
-        method: "POST",
+      const res = await fetch(`${API_BASE_URL}/api/replies/${replyId}`, {
+        method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Error disliking the post");
-      const updatedPost = await res.json();
-      setPost(updatedPost);
+      if (!res.ok) throw new Error("Failed to delete reply");
+
+      // 🔥 Immediately update UI
+      setReplies((prev) => ({
+        ...prev,
+        [commentId]: prev[commentId]?.filter((reply) => reply._id !== replyId),
+      }));
     } catch (err) {
-      setError(err.message);
+      console.error(err.message);
     }
   };
 
-  const handleDelete = async () => {
-    if (!post) return;
-    if (window.confirm("Are you sure you want to delete this post?")) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("Failed to delete post");
-        alert("Post deleted successfully!");
-        navigate("/home");
-      } catch (err) {
-        setError(err.message);
-      }
-    }
+  const handleReplyInputChange = (commentId, field, value) => {
+    setReplyInputs((prev) => ({
+      ...prev,
+      [commentId]: { ...prev[commentId], [field]: value },
+    }));
   };
 
   if (error) return <p className="text-danger text-center mt-5">{error}</p>;
   if (!post) return <p className="text-center mt-5">Loading post details...</p>;
 
-  const hasLiked = post.likedBy?.includes(loggedInUserId);
-  const hasDisliked = post.dislikedBy?.includes(loggedInUserId);
-
   return (
     <div className="container d-flex flex-column align-items-center mt-5 mb-5">
-      {/* Post Card */}
-      <div
-        className="card shadow-lg p-4 position-relative mb-4"
-        style={{ maxWidth: "800px", width: "100%" }}
-      >
+      <div className="card shadow-lg p-4 mb-4 position-relative" style={{ maxWidth: "800px", width: "100%" }}>
         <button
           className="btn btn-secondary btn-sm position-absolute"
-          style={{ top: 10, left: 10 }}
+          style={{ top: "15px", left: "15px" }}
           onClick={() => navigate("/home")}
         >
           ← Back
         </button>
 
-        {post.user?._id === loggedInUserId && (
-          <div className="position-absolute" style={{ top: 10, right: 10 }}>
-            <button
-              className="btn btn-warning btn-sm me-2"
-              onClick={() => navigate(`/edit-post/${postId}`)}
-            >
-              ✏️ Edit
-            </button>
-            <button className="btn btn-danger btn-sm" onClick={handleDelete}>
-              🗑 Delete
-            </button>
-          </div>
-        )}
-
         <h2 className="fw-bold mt-4">{post.title}</h2>
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <span className="badge bg-primary">{post.category || "Uncategorized"}</span>
-          <p className="text-muted small">
-            by {post.user?.username || "Unknown User"}{" "}
-            {post.createdAt !== post.updatedAt && (
-              <span className="text-muted">(Edited)</span>
-            )}
-          </p>
-        </div>
 
         {post.coverImage && (
-          <div className="text-center mb-3">
-            <img
-              src={`data:image/jpeg;base64,${post.coverImage}`}
-              alt="Post Cover"
-              className="img-fluid rounded"
-              style={{
-                maxHeight: 600,
-                objectFit: "contain",
-                width: "100%",
-                height: "auto",
-              }}
-            />
-          </div>
+          <img src={`data:image/jpeg;base64,${post.coverImage}`} className="img-fluid rounded my-3" />
         )}
 
-        <p className="text-dark" style={{ fontSize: 18, lineHeight: 1.6 }}>
-          {post.content}
-        </p>
-
-        <div className="d-flex align-items-center gap-3 mt-4">
-          <button
-            className={`btn btn-sm btn-${hasLiked ? "danger" : "outline-danger"}`}
-            onClick={handleLike}
-          >
-            {hasLiked ? "❤️ Unlike" : "🤍 Like"} {post.likes}
-          </button>
-          <button
-            className={`btn btn-sm btn-${hasDisliked ? "secondary" : "outline-secondary"}`}
-            onClick={handleDislike}
-          >
-            {hasDisliked ? "👎 Dislike" : "👎 Dislike"} {post.dislikes}
-          </button>
-        </div>
+        <p style={{ fontSize: 18 }}>{post.content}</p>
       </div>
 
-      {/* Comments Section */}
-      <div
-        className="card shadow p-4"
-        style={{ maxWidth: "800px", width: "100%" }}
-      >
+      <div className="card shadow p-4" style={{ maxWidth: "800px", width: "100%" }}>
         <h4 className="mb-4">Comments</h4>
 
-        {/* Comment Form */}
         {token ? (
           <form onSubmit={handleCommentSubmit} className="mb-4">
-            <div className="mb-3">
-              <textarea
-                className="form-control"
-                rows="3"
-                placeholder="Write a comment..."
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                ref={commentInputRef}
-                required={!commentImage}
-              ></textarea>
-            </div>
-
-            {/* File input */}
-            <div className="mb-3">
-              <input
-                type="file"
-                accept="image/*"
-                className="form-control"
-                onChange={(e) => setCommentImage(e.target.files[0])}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isLoading}
-            >
+            <textarea
+              className="form-control mb-2"
+              rows="3"
+              placeholder="Write a comment..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              ref={commentInputRef}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              className="form-control mb-2"
+              onChange={(e) => setCommentImage(e.target.files[0])}
+            />
+            <button type="submit" className="btn btn-primary" disabled={isLoading}>
               {isLoading ? "Posting..." : "Post Comment"}
             </button>
           </form>
         ) : (
           <div className="alert alert-info mb-4">
-            Please <a href="/login">login</a> to comment on this post.
+            Please <a href="/login">login</a> to comment.
           </div>
         )}
 
-        {/* Comments List */}
-        <div className="comments-list">
-          {comments.length === 0 ? (
-            <p className="text-muted">No comments yet. Be the first to comment!</p>
-          ) : (
-            comments.map((comment) => (
-              <div
-                key={comment._id}
-                className="card mb-3 p-3"
-                style={{ borderLeft: "4px solid #007bff" }}
-              >
+        {comments.map((comment) => (
+          <div key={comment._id} className="card p-3 mb-3">
+            <div className="d-flex justify-content-between">
+              <div>
+                <h6 className="mb-1">{comment.user?.username || "Unknown User"}</h6>
+                <small className="text-muted">{formatTimeAgo(comment.createdAt)}</small>
+              </div>
+              {comment.user?._id === loggedInUserId && (
+                <button className="btn btn-sm text-danger" onClick={() => handleDeleteComment(comment._id)}>
+                  Delete
+                </button>
+              )}
+            </div>
+
+            <p>{comment.content}</p>
+            {comment.image && (
+              <img src={comment.image} alt="Comment" className="img-fluid rounded my-2" style={{ maxWidth: "300px" }} />
+            )}
+
+            {replies[comment._id]?.map((reply) => (
+              <div key={reply._id} className="bg-light rounded p-2 my-2 ms-4">
                 <div className="d-flex justify-content-between">
                   <div>
-                    <h6 className="mb-1">{comment.user?.username || "Unknown User"}</h6>
-                    <p className="text-muted small">
-                      {new Date(comment.createdAt).toLocaleString()}
-                    </p>
+                    <strong>{reply.user?.username || "Unknown"}</strong>
+                    <small className="text-muted ms-2">{formatTimeAgo(reply.createdAt)}</small>
                   </div>
-                  {comment.user?._id === loggedInUserId && (
-                    <button
-                      className="btn btn-sm text-danger"
-                      onClick={() => handleDeleteComment(comment._id)}
-                    >
+                  {reply.user?._id === loggedInUserId && (
+                    <button className="btn btn-sm text-danger" onClick={() => handleDeleteReply(reply._id, comment._id)}>
                       Delete
                     </button>
                   )}
                 </div>
-
-                <p className="mb-2">{comment.content}</p>
-
-                {comment.image && (
-                  <img
-                    src={comment.image}
-                    alt="Comment Attachment"
-                    className="img-fluid rounded mt-2"
-                    style={{ maxWidth: "300px" }}
-                  />
+                <p className="mb-1">{reply.content}</p>
+                {reply.image && (
+                  <img src={reply.image} alt="Reply" className="img-fluid rounded mt-1" style={{ maxWidth: "250px" }} />
                 )}
               </div>
-            ))
-          )}
-        </div>
+            ))}
+
+            {token && (
+              <form onSubmit={(e) => handleReplySubmit(e, comment._id)} className="mt-2 ms-4">
+                <textarea
+                  className="form-control mb-2"
+                  rows="2"
+                  placeholder="Write a reply..."
+                  value={replyInputs[comment._id]?.text || ""}
+                  onChange={(e) => handleReplyInputChange(comment._id, "text", e.target.value)}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="form-control mb-2"
+                  onChange={(e) => handleReplyInputChange(comment._id, "image", e.target.files[0])}
+                />
+                <button className="btn btn-success btn-sm">Post Reply</button>
+              </form>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
