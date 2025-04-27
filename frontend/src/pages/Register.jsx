@@ -1,5 +1,4 @@
-/* eslint-disable no-unused-vars */
-import React, { useState } from "react";
+import  { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function Register() {
@@ -9,6 +8,9 @@ function Register() {
     password: "",
     confirmPassword: "",
     dateOfBirth: "",
+    day: "",
+    month: "",
+    year: "",
   });
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -23,15 +25,30 @@ function Register() {
     setError(null);
     setSuccessMessage(null);
 
+    // Check if all date fields are filled
     if (!formData.day || !formData.month || !formData.year) {
       setError("Please select your date of birth.");
       return;
     }
 
-    const formattedDOB = `${formData.year}-${formData.month.padStart(
-      2,
-      "0"
-    )}-${formData.day.padStart(2, "0")}`;
+    // Format the date of birth to ISO format (YYYY-MM-DD)
+    const formattedDOB = `${formData.year}-${formData.month.padStart(2, "0")}-${formData.day.padStart(2, "0")}`;
+
+    // Password and confirm password check
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    // Age check - user must be at least 18 years old
+    const birthDate = new Date(formattedDOB);
+    const age = new Date().getFullYear() - birthDate.getFullYear();
+    const monthDiff = new Date().getMonth() - birthDate.getMonth();
+    const isUnder18 = age < 18 || (age === 18 && monthDiff < 0);
+    if (isUnder18) {
+      setError("You must be at least 18 years old to register.");
+      return;
+    }
 
     try {
       const response = await fetch("http://localhost:5000/api/auth/register", {
@@ -56,16 +73,10 @@ function Register() {
   };
 
   return (
-    <div
-      className="d-flex justify-content-center align-items-center vh-100 bg-light"
-      style={{ paddingTop: "100px" }}
-    >
+    <div className="d-flex justify-content-center align-items-center vh-100 bg-light" style={{ paddingTop: "100px" }}>
       <div className="container text-center">
         <h1 className="mb-4">CHAUTARI</h1>
-        <div
-          className="card p-4 shadow-lg"
-          style={{ maxWidth: "400px", margin: "auto" }}
-        >
+        <div className="card p-4 shadow-lg" style={{ maxWidth: "400px", margin: "auto" }}>
           <h2 className="mb-3">Register</h2>
           {error && <p className="text-danger">{error}</p>}
           {successMessage && <p className="text-success">{successMessage}</p>}
