@@ -111,6 +111,7 @@ function HomePage() {
     return () => {
       socket.disconnect();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedCategories]); // Trigger re-fetch when selected categories change
 
   const fetchUserProfile = async () => {
