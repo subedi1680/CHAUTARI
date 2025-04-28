@@ -12,7 +12,7 @@ const authRoutes = require("./routes/authRoutes");
 const postRoutes = require("./routes/postRoutes");
 const userRoutes = require("./routes/userRoutes");
 const commentRoutes = require("./routes/commentRoutes");
-const replyRoutes = require("./routes/replyRoutes"); // ✅ New: Import replyRoutes
+const replyRoutes = require("./routes/replyRoutes");
 
 dotenv.config();
 
@@ -25,7 +25,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO server
 const io = new Server(server, {
   cors: {
-    origin: "*", // Change to specific frontend URL in production (important!)
+    origin: "*",
     methods: ["GET", "POST", "DELETE"],
   },
 });
@@ -44,7 +44,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🔥 Attach io to every request (for real-time updates)
+// Attach io to every request (for real-time updates)
 app.use((req, res, next) => {
   req.io = io;
   next();
@@ -54,8 +54,8 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api", commentRoutes); // /api/posts/:postId/comments
-app.use("/api", replyRoutes);   // ✅ /api/comments/:commentId/replies
+app.use("/api", commentRoutes);
+app.use("/api", replyRoutes); 
 
 // Connect to MongoDB and start server
 mongoose

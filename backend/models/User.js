@@ -21,12 +21,12 @@ const userSchema = mongoose.Schema({
     required: true,
   },
   categories: {
-    type: [String], // Array of selected categories
+    type: [String],
     default: [],
   },
   categorySetupCompleted: {
     type: Boolean,
-    default: false, // Defaults to false if not set
+    default: false,
   },
 });
 

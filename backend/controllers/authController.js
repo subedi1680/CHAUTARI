@@ -68,7 +68,7 @@ const loginUser = async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        categorySetupCompleted: user.categorySetupCompleted, // Include categorySetupCompleted flag
+        categorySetupCompleted: user.categorySetupCompleted,
       },
     };
 

@@ -18,7 +18,7 @@ const commentSchema = new mongoose.Schema(
       required: true,
     },
     image: {
-      type: String, // Store Base64 directly
+      type: String,
       default: '',
     },
   },

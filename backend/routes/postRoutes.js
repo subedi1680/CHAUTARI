@@ -5,8 +5,8 @@ const {
   getPostById,
   deletePost,
   updatePost,
-  likePost,       // ← new
-  dislikePost     // ← new
+  likePost,       
+  dislikePost     
 } = require("../controllers/postController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const multer = require("multer");

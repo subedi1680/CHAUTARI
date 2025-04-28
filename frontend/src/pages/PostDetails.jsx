@@ -507,7 +507,7 @@ function PostDetails() {
             top: 0,
             left: 0,
             zIndex: 1050,
-            backgroundColor: "rgba(0, 0, 0, 0.5)", // Optional: background dimming effect
+            backgroundColor: "rgba(0, 0, 0, 0.5)", 
           }}
         >
           <div className="modal-dialog modal-dialog-centered modal-lg">

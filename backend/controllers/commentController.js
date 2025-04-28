@@ -50,13 +50,13 @@ exports.createComment = async (req, res) => {
     // Add the comment to the post's comments array and update the post's comment count
     await Post.findByIdAndUpdate(postId, {
       $push: { comments: savedComment._id },
-      $inc: { commentCount: 1 },  // Increment the comment count for the post
+      $inc: { commentCount: 1 },
     });
 
     const populatedComment = await Comment.findById(savedComment._id)
       .populate('user', 'username');
 
-    // Emit the event for new comment
+    
     req.io.emit('newComment', populatedComment);
 
     res.status(201).json(populatedComment);
@@ -87,7 +87,7 @@ exports.deleteComment = async (req, res) => {
     // Remove the comment from the post's comment array and update the comment count
     await Post.findByIdAndUpdate(postId, {
       $pull: { comments: commentId },
-      $inc: { commentCount: -1 },  // Decrement the comment count for the post
+      $inc: { commentCount: -1 },  
     });
 
     req.io.emit('deleteComment', { commentId, postId });

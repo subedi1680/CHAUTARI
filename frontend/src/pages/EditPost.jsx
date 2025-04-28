@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Select from "react-select";  // Importing react-select for the dropdown
+import Select from "react-select";  
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Category options (same as in CreatePost.jsx)
+
 const categoryOptions = [
   { value: "General & Trending", label: "General & Trending" },
   { value: "News & Current Events", label: "News & Current Events" },

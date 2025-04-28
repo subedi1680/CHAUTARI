@@ -18,7 +18,7 @@ const replySchema = new mongoose.Schema(
       required: true,
     },
     image: {
-      type: String, // Base64 string
+      type: String,
       default: '',
     },
   },

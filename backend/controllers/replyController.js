@@ -7,7 +7,7 @@ exports.getRepliesByComment = async (req, res) => {
     const commentId = req.params.commentId;
     const replies = await Reply.find({ comment: commentId })
       .populate('user', 'username')
-      .sort({ createdAt: 1 }); // Oldest first
+      .sort({ createdAt: 1 }); 
 
     res.status(200).json(replies);
   } catch (error) {
@@ -46,7 +46,7 @@ exports.createReply = async (req, res) => {
       content,
       comment: commentId,
       user: userId,
-      image: base64Image, // Store the base64 image
+      image: base64Image,
     });
 
     // Save the reply to the database

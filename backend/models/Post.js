@@ -32,7 +32,6 @@ const postSchema = new mongoose.Schema(
       type: Date,
     },
     
-    // NEW: total counts
     likes: {
       type: Number,
       default: 0,
@@ -42,7 +41,6 @@ const postSchema = new mongoose.Schema(
       default: 0,
     },
     
-    // NEW: who has liked/disliked
     likedBy: [
       {
         type: mongoose.Schema.Types.ObjectId,

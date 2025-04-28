@@ -1,9 +1,9 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Select from 'react-select'; // Import react-select for searchable dropdown
+import Select from 'react-select'; 
 
-// Category options
+
 const categoryOptions = [
   { value: "General & Trending", label: "General & Trending" },
   { value: "News & Current Events", label: "News & Current Events" },
@@ -99,7 +99,7 @@ const categoryOptions = [
 function CreateNewPost() {
   const [formData, setFormData] = useState({
     title: "",
-    category: "General & Trending", // Set default value to "General & Trending"
+    category: "General & Trending",
     coverImage: null,
     content: "",
   });

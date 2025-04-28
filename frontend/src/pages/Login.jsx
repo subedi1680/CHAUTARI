@@ -1,14 +1,13 @@
 import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import UserContext from "../components/UserContext"; // Import the UserContext
-
+import UserContext from "../components/UserContext"; 
 function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   // eslint-disable-next-line no-unused-vars
-  const { categorySetupCompleted } = useContext(UserContext); // Use context to check category setup
+  const { categorySetupCompleted } = useContext(UserContext); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();

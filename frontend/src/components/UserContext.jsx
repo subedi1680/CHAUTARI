@@ -17,7 +17,7 @@ export const UserProvider = ({ children }) => {
   // Set category setup completion flag in sessionStorage
   const markCategorySetupCompleted = () => {
     setCategorySetupCompleted(true);
-    sessionStorage.setItem("categorySetupCompleted", true); // Store the flag in sessionStorage
+    sessionStorage.setItem("categorySetupCompleted", true);
   };
 
   return (

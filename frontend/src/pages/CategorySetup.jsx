@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import UserContext from "../components/UserContext"; // Import the UserContext
+import UserContext from "../components/UserContext"; 
 
 const allCategories = [
   {
@@ -167,7 +167,7 @@ const allCategories = [
 const CategorySetup = () => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [showSimilarCategories, setShowSimilarCategories] = useState({});
-  const { markCategorySetupCompleted } = useContext(UserContext); // markCategorySetupCompleted from context
+  const { markCategorySetupCompleted } = useContext(UserContext);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -226,8 +226,8 @@ const CategorySetup = () => {
     });
 
     if (response.ok) {
-      markCategorySetupCompleted(); // Mark setup completed in context
-      navigate("/home"); // Ensure the navigation happens only after a successful update
+      markCategorySetupCompleted(); 
+      navigate("/home"); 
     } else {
       console.error("Failed to save category setup");
     }

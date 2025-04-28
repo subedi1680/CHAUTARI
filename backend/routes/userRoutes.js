@@ -27,7 +27,7 @@ router.put("/:id/categories", authMiddleware, async (req, res) => {
 
     // Update the categories for the user
     user.categories = categories;
-    user.categorySetupCompleted = true; // Mark category setup as completed
+    user.categorySetupCompleted = true;
     await user.save();
     
     res.status(200).json({ msg: "Categories updated successfully" });

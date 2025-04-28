@@ -31,7 +31,7 @@ function HomePage() {
   const [activeTab, setActiveTab] = useState("posts");
   const [posts, setPosts] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
-  const [selectedCategories, setSelectedCategories] = useState([]); // State for selected categories
+  const [selectedCategories, setSelectedCategories] = useState([]); 
   const navigate = useNavigate();
 
   const token = sessionStorage.getItem("token");
@@ -47,7 +47,7 @@ function HomePage() {
       });
       if (response.ok) {
         const userData = await response.json();
-        setSelectedCategories(userData.categories); // Set selected categories from user profile
+        setSelectedCategories(userData.categories); 
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
@@ -112,7 +112,7 @@ function HomePage() {
       socket.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedCategories]); // Trigger re-fetch when selected categories change
+  }, [activeTab, selectedCategories]); 
 
   const fetchUserProfile = async () => {
     try {
