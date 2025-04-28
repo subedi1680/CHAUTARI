@@ -1,13 +1,15 @@
-import "bootstrap/dist/css/bootstrap.min.css";
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { io } from "socket.io-client";
+"use client"
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import "bootstrap/dist/css/bootstrap.min.css"
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { io } from "socket.io-client"
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 const formatTimeAgo = (dateString) => {
-  const date = new Date(dateString);
-  const seconds = Math.floor((new Date() - date) / 1000);
+  const date = new Date(dateString)
+  const seconds = Math.floor((new Date() - date) / 1000)
 
   const intervals = [
     { label: "year", seconds: 31536000 },
@@ -16,127 +18,139 @@ const formatTimeAgo = (dateString) => {
     { label: "hour", seconds: 3600 },
     { label: "minute", seconds: 60 },
     { label: "second", seconds: 1 },
-  ];
+  ]
 
   for (const interval of intervals) {
-    const count = Math.floor(seconds / interval.seconds);
+    const count = Math.floor(seconds / interval.seconds)
     if (count > 0) {
-      return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`;
+      return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`
     }
   }
-  return "just now";
-};
+  return "just now"
+}
 
 function HomePage() {
-  const [activeTab, setActiveTab] = useState("posts");
-  const [posts, setPosts] = useState([]);
-  const [userProfile, setUserProfile] = useState(null);
-  const [selectedCategories, setSelectedCategories] = useState([]); 
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("posts")
+  const [posts, setPosts] = useState([])
+  const [userProfile, setUserProfile] = useState(null)
+  // eslint-disable-next-line no-unused-vars
+  const [selectedCategories, setSelectedCategories] = useState([])
+  const navigate = useNavigate()
 
-  const token = sessionStorage.getItem("token");
-  const userId = sessionStorage.getItem("userId");
-
-  // Fetch the selected categories for the user
-  const fetchUserCategories = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        setSelectedCategories(userData.categories); 
-      }
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-    }
-  };
+  const token = sessionStorage.getItem("token")
+  const userId = sessionStorage.getItem("userId")
 
   useEffect(() => {
     // Fetch user categories on page load
-    if (userId && token) {
-      fetchUserCategories();
+    const fetchData = async () => {
+      if (userId && token) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+          if (response.ok) {
+            const userData = await response.json()
+            setSelectedCategories(userData.categories || [])
+
+            // Now fetch posts after categories are loaded
+            const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
+            if (!postsResponse.ok) {
+              throw new Error("Failed to fetch posts")
+            }
+            const postsData = await postsResponse.json()
+            if (!Array.isArray(postsData)) {
+              throw new Error("Invalid response format from server")
+            }
+
+            // Filter posts based on selected categories
+            const filteredPosts =
+              userData.categories && userData.categories.length > 0
+                ? postsData.filter((post) => userData.categories.includes(post.category))
+                : postsData
+
+            const sortedPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            setPosts(sortedPosts)
+          }
+        } catch (err) {
+          console.error("Error fetching data:", err)
+        }
+      } else {
+        // If not logged in, just fetch all posts
+        fetchAllPosts()
+      }
     }
 
-    const fetchPosts = async () => {
+    const fetchAllPosts = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/posts`);
+        const response = await fetch(`${API_BASE_URL}/api/posts`)
         if (!response.ok) {
-          throw new Error("Failed to fetch posts");
+          throw new Error("Failed to fetch posts")
         }
-        const data = await response.json();
+        const data = await response.json()
         if (!Array.isArray(data)) {
-          throw new Error("Invalid response format from server");
+          throw new Error("Invalid response format from server")
         }
 
-        // Filter posts based on selected categories
-        const filteredPosts = data.filter((post) =>
-          selectedCategories.length === 0 || selectedCategories.includes(post.category)
-        );
-
-        const sortedPosts = filteredPosts.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        );
-        setPosts(sortedPosts);
+        const sortedPosts = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        setPosts(sortedPosts)
       } catch (err) {
-        console.error("Failed to fetch posts:", err);
+        console.error("Failed to fetch posts:", err)
       }
-    };
+    }
 
-    fetchPosts();
+    fetchData()
 
     if (activeTab === "profile" && token && userId) {
-      fetchUserProfile();
+      fetchUserProfile()
     }
 
-    // ➡️ Added socket listener
-    const socket = io(API_BASE_URL, { withCredentials: true });
+    // Socket listener for real-time updates
+    const socket = io(API_BASE_URL, { withCredentials: true })
 
     socket.on("commentCountUpdated", ({ postId, action }) => {
       setPosts((prevPosts) =>
         prevPosts.map((post) => {
           if (post._id === postId) {
-            let updatedCount = post.commentCount || 0;
-            updatedCount =
-              action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1);
-            return { ...post, commentCount: updatedCount };
+            let updatedCount = post.commentCount || 0
+            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
+            return { ...post, commentCount: updatedCount }
           }
-          return post;
-        })
-      );
-    });
+          return post
+        }),
+      )
+    })
 
     return () => {
-      socket.disconnect();
-    };
+      socket.disconnect()
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedCategories]); 
+  }, [activeTab, token, userId])
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
+      })
       if (response.ok) {
-        const userData = await response.json();
-        setUserProfile(userData);
+        const userData = await response.json()
+        setUserProfile(userData)
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.error("Error fetching user profile:", error)
     }
-  };
+  }
 
   const handlePostClick = (postId) => {
     if (!postId || postId === "undefined") {
-      console.error("Invalid postId:", postId);
-      return;
+      console.error("Invalid postId:", postId)
+      return
     }
-    navigate(`/post/${postId}`);
-  };
+    navigate(`/post/${postId}`)
+  }
 
   const updateReactions = (postId, updatedData) => {
     setPosts((prevPosts) =>
@@ -147,10 +161,10 @@ function HomePage() {
               likes: updatedData.likes,
               dislikes: updatedData.dislikes,
             }
-          : post
-      )
-    );
-  };
+          : post,
+      ),
+    )
+  }
 
   const handleLike = async (postId) => {
     try {
@@ -159,14 +173,14 @@ function HomePage() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
-      if (!res.ok) throw new Error("Failed to like post");
-      const updatedPost = await res.json();
-      updateReactions(postId, updatedPost);
+      })
+      if (!res.ok) throw new Error("Failed to like post")
+      const updatedPost = await res.json()
+      updateReactions(postId, updatedPost)
     } catch (err) {
-      console.error(err);
+      console.error(err)
     }
-  };
+  }
 
   const handleDislike = async (postId) => {
     try {
@@ -175,14 +189,14 @@ function HomePage() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      });
-      if (!res.ok) throw new Error("Failed to dislike post");
-      const updatedPost = await res.json();
-      updateReactions(postId, updatedPost);
+      })
+      if (!res.ok) throw new Error("Failed to dislike post")
+      const updatedPost = await res.json()
+      updateReactions(postId, updatedPost)
     } catch (err) {
-      console.error(err);
+      console.error(err)
     }
-  };
+  }
 
   return (
     <div className="d-flex vh-100">
@@ -229,24 +243,14 @@ function HomePage() {
                 <p>No posts available.</p>
               ) : (
                 posts.map((post) => (
-                  <div
-                    className="card mb-4 shadow-sm"
-                    key={post._id}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <div
-                      className="card-body"
-                      onClick={() => handlePostClick(post._id)}
-                    >
+                  <div className="card mb-4 shadow-sm" key={post._id} style={{ cursor: "pointer" }}>
+                    <div className="card-body" onClick={() => handlePostClick(post._id)}>
                       <div className="d-flex justify-content-between align-items-center">
                         <h5 className="mb-0">{post.title}</h5>
-                        <span className="badge bg-primary">
-                          {post.category || "Uncategorized"}
-                        </span>
+                        <span className="badge bg-primary">{post.category || "Uncategorized"}</span>
                       </div>
                       <p className="text-muted small">
-                        by {post.user?.username || "Unknown User"} •{" "}
-                        {formatTimeAgo(post.createdAt)}
+                        by {post.user?.username || "Unknown User"} • {formatTimeAgo(post.createdAt)}
                       </p>
                       {post.coverImage && (
                         <img
@@ -261,8 +265,8 @@ function HomePage() {
                         <button
                           className="btn btn-outline-success btn-sm"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            handleLike(post._id);
+                            e.stopPropagation()
+                            handleLike(post._id)
                           }}
                         >
                           👍 {post.likes || 0}
@@ -270,15 +274,13 @@ function HomePage() {
                         <button
                           className="btn btn-outline-danger btn-sm"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            handleDislike(post._id);
+                            e.stopPropagation()
+                            handleDislike(post._id)
                           }}
                         >
                           👎 {post.dislikes || 0}
                         </button>
-                        <span className="text-muted ms-2">
-                          💬 {post.commentCount || 0} comments
-                        </span>
+                        <span className="text-muted ms-2">💬 {post.commentCount || 0} comments</span>
                       </div>
                     </div>
                   </div>
@@ -310,7 +312,7 @@ function HomePage() {
         )}
       </div>
     </div>
-  );
+  )
 }
 
-export default HomePage;
+export default HomePage
