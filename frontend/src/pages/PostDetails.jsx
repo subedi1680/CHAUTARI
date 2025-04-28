@@ -94,6 +94,7 @@ function PostDetails() {
       socket.off("newReply");
       socket.off("deleteReply");
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId]);
 
   const fetchPost = async () => {
@@ -306,6 +307,34 @@ function PostDetails() {
     }
   };
 
+  const handleEditPost = () => {
+    if (post.user._id !== loggedInUserId) {
+      setError("You are not authorized to edit this post.");
+      return;
+    }
+    navigate(`/edit-post/${postId}`);
+  };
+
+  const handleDeletePost = async () => {
+    if (post.user._id !== loggedInUserId) {
+      setError("You are not authorized to delete this post.");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to delete post");
+
+      navigate("/home");
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   if (error) return <p className="text-danger text-center mt-5">{error}</p>;
   if (!post) return <p className="text-center mt-5">Loading post details...</p>;
 
@@ -323,6 +352,17 @@ function PostDetails() {
         <h2 className="fw-bold mt-4">{post.title}</h2>
 
         <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
+
+        {post.user._id === loggedInUserId && (
+          <div className="d-flex justify-content-between mt-3">
+            <button className="btn btn-warning btn-sm" onClick={handleEditPost}>
+              Edit Post
+            </button>
+            <button className="btn btn-danger btn-sm" onClick={handleDeletePost}>
+              Delete Post
+            </button>
+          </div>
+        )}
 
         {post.coverImage && (
           <img
