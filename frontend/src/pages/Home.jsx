@@ -31,10 +31,12 @@ const formatTimeAgo = (dateString) => {
 
 function HomePage() {
   const [activeTab, setActiveTab] = useState("posts")
+  const [activeSubTab, setActiveSubTab] = useState("feed") // "feed" or "myPosts"
   const [posts, setPosts] = useState([])
+  const [myPosts, setMyPosts] = useState([])
   const [userProfile, setUserProfile] = useState(null)
-  // eslint-disable-next-line no-unused-vars
   const [selectedCategories, setSelectedCategories] = useState([])
+  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   const token = sessionStorage.getItem("token")
@@ -45,6 +47,7 @@ function HomePage() {
     const fetchData = async () => {
       if (userId && token) {
         try {
+          setLoading(true)
           const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -70,11 +73,19 @@ function HomePage() {
                 ? postsData.filter((post) => userData.categories.includes(post.category))
                 : postsData
 
+            // Also filter out the user's own posts for the "My Posts" tab
+            const userPosts = postsData.filter((post) => post.user?._id === userId)
+
             const sortedPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            const sortedMyPosts = userPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
             setPosts(sortedPosts)
+            setMyPosts(sortedMyPosts)
           }
         } catch (err) {
           console.error("Error fetching data:", err)
+        } finally {
+          setLoading(false)
         }
       } else {
         // If not logged in, just fetch all posts
@@ -84,6 +95,7 @@ function HomePage() {
 
     const fetchAllPosts = async () => {
       try {
+        setLoading(true)
         const response = await fetch(`${API_BASE_URL}/api/posts`)
         if (!response.ok) {
           throw new Error("Failed to fetch posts")
@@ -97,6 +109,8 @@ function HomePage() {
         setPosts(sortedPosts)
       } catch (err) {
         console.error("Failed to fetch posts:", err)
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -120,12 +134,22 @@ function HomePage() {
           return post
         }),
       )
+
+      setMyPosts((prevPosts) =>
+        prevPosts.map((post) => {
+          if (post._id === postId) {
+            let updatedCount = post.commentCount || 0
+            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
+            return { ...post, commentCount: updatedCount }
+          }
+          return post
+        }),
+      )
     })
 
     return () => {
       socket.disconnect()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token, userId])
 
   const fetchUserProfile = async () => {
@@ -153,7 +177,20 @@ function HomePage() {
   }
 
   const updateReactions = (postId, updatedData) => {
+    // Update reactions in both post lists
     setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post._id === postId
+          ? {
+              ...post,
+              likes: updatedData.likes,
+              dislikes: updatedData.dislikes,
+            }
+          : post,
+      ),
+    )
+
+    setMyPosts((prevPosts) =>
       prevPosts.map((post) =>
         post._id === postId
           ? {
@@ -198,6 +235,61 @@ function HomePage() {
     }
   }
 
+  // Function to render post cards
+  const renderPostCards = (postsToRender) => {
+    if (loading) {
+      return <p>Loading posts...</p>
+    }
+
+    if (postsToRender.length === 0) {
+      return <p>No posts available.</p>
+    }
+
+    return postsToRender.map((post) => (
+      <div className="card mb-4 shadow-sm" key={post._id} style={{ cursor: "pointer" }}>
+        <div className="card-body" onClick={() => handlePostClick(post._id)}>
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">{post.title}</h5>
+            <span className="badge bg-primary">{post.category || "Uncategorized"}</span>
+          </div>
+          <p className="text-muted small">
+            by {post.user?.username || "Unknown User"} • {formatTimeAgo(post.createdAt)}
+          </p>
+          {post.coverImage && (
+            <img
+              src={`data:image/jpeg;base64,${post.coverImage}`}
+              alt="Post Cover"
+              className="img-fluid mb-3"
+              style={{ maxHeight: "200px", objectFit: "cover" }}
+            />
+          )}
+
+          <div className="d-flex justify-content-start align-items-center gap-3 mt-2">
+            <button
+              className="btn btn-outline-success btn-sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleLike(post._id)
+              }}
+            >
+              👍 {post.likes || 0}
+            </button>
+            <button
+              className="btn btn-outline-danger btn-sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDislike(post._id)
+              }}
+            >
+              👎 {post.dislikes || 0}
+            </button>
+            <span className="text-muted ms-2">💬 {post.commentCount || 0} comments</span>
+          </div>
+        </div>
+      </div>
+    ))
+  }
+
   return (
     <div className="d-flex vh-100">
       <div className="p-3 border-end bg-light" style={{ width: "250px" }}>
@@ -212,10 +304,46 @@ function HomePage() {
                 background: "none",
                 padding: "5px",
                 cursor: "pointer",
+                fontWeight: "bold",
               }}
             >
-              Feed
+              Posts
             </button>
+
+            {activeTab === "posts" && (
+              <ul className="nav flex-column ms-3 mt-2">
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeSubTab === "feed" ? "active" : ""}`}
+                    onClick={() => setActiveSubTab("feed")}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      padding: "5px",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    Feed
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`nav-link ${activeSubTab === "myPosts" ? "active" : ""}`}
+                    onClick={() => setActiveSubTab("myPosts")}
+                    style={{
+                      border: "none",
+                      background: "none",
+                      padding: "5px",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    My Posts
+                  </button>
+                </li>
+              </ul>
+            )}
           </li>
           <li className="nav-item">
             <button
@@ -226,6 +354,7 @@ function HomePage() {
                 background: "none",
                 padding: "5px",
                 cursor: "pointer",
+                fontWeight: "bold",
               }}
             >
               Profile
@@ -237,55 +366,9 @@ function HomePage() {
       <div className="flex-grow-1 p-4">
         {activeTab === "posts" && (
           <>
-            <h4>Posts Feed</h4>
+            <h4>{activeSubTab === "feed" ? "Posts Feed" : "My Posts"}</h4>
             <div style={{ maxWidth: "800px" }}>
-              {posts.length === 0 ? (
-                <p>No posts available.</p>
-              ) : (
-                posts.map((post) => (
-                  <div className="card mb-4 shadow-sm" key={post._id} style={{ cursor: "pointer" }}>
-                    <div className="card-body" onClick={() => handlePostClick(post._id)}>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <h5 className="mb-0">{post.title}</h5>
-                        <span className="badge bg-primary">{post.category || "Uncategorized"}</span>
-                      </div>
-                      <p className="text-muted small">
-                        by {post.user?.username || "Unknown User"} • {formatTimeAgo(post.createdAt)}
-                      </p>
-                      {post.coverImage && (
-                        <img
-                          src={`data:image/jpeg;base64,${post.coverImage}`}
-                          alt="Post Cover"
-                          className="img-fluid mb-3"
-                          style={{ maxHeight: "200px", objectFit: "cover" }}
-                        />
-                      )}
-
-                      <div className="d-flex justify-content-start align-items-center gap-3 mt-2">
-                        <button
-                          className="btn btn-outline-success btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleLike(post._id)
-                          }}
-                        >
-                          👍 {post.likes || 0}
-                        </button>
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDislike(post._id)
-                          }}
-                        >
-                          👎 {post.dislikes || 0}
-                        </button>
-                        <span className="text-muted ms-2">💬 {post.commentCount || 0} comments</span>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+              {activeSubTab === "feed" ? renderPostCards(posts) : renderPostCards(myPosts)}
             </div>
           </>
         )}
