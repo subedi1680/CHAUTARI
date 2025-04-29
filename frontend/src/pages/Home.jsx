@@ -2,9 +2,15 @@
 "use client"
 
 import "bootstrap/dist/css/bootstrap.min.css"
+import "bootstrap-icons/font/bootstrap-icons.css"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { io } from "socket.io-client"
+import { categoryStructure } from "../utils/categoryData"
+import "./Home.css"
+
+// Add these imports at the top of the file, after the existing imports
+import "bootstrap/dist/js/bootstrap.bundle.min.js"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -31,15 +37,21 @@ const formatTimeAgo = (dateString) => {
 }
 
 function HomePage() {
-  const [activeTab, setActiveTab] = useState("posts")
-  const [activeSubTab, setActiveSubTab] = useState("feed") // "feed" or "myPosts"
+  const [activeTab, setActiveTab] = useState("feed") // "feed" or "myPosts" or "profile"
   const [posts, setPosts] = useState([])
   const [myPosts, setMyPosts] = useState([])
   const [userProfile, setUserProfile] = useState(null)
-  // eslint-disable-next-line no-unused-vars
   const [selectedCategories, setSelectedCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [editingCategories, setEditingCategories] = useState(false)
+  const [availableCategories, setAvailableCategories] = useState([])
+  const [tempSelectedCategories, setTempSelectedCategories] = useState([])
+  const [savingCategories, setSavingCategories] = useState(false)
+  const [userActivities, setUserActivities] = useState([])
+  const [activityLoading, setActivityLoading] = useState(false)
   const navigate = useNavigate()
+  // Add these new state variables in the existing state declarations
 
   const token = sessionStorage.getItem("token")
   const userId = sessionStorage.getItem("userId")
@@ -57,7 +69,10 @@ function HomePage() {
           })
           if (response.ok) {
             const userData = await response.json()
+            setUserProfile(userData)
             setSelectedCategories(userData.categories || [])
+            setTempSelectedCategories(userData.categories || [])
+            sessionStorage.setItem("username", userData.username || "")
 
             // Now fetch posts after categories are loaded
             const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
@@ -118,9 +133,15 @@ function HomePage() {
 
     fetchData()
 
-    if (activeTab === "profile" && token && userId) {
-      fetchUserProfile()
-    }
+    // Prepare available categories from categoryStructure
+    const allCategories = []
+    categoryStructure.forEach((category) => {
+      allCategories.push(category.name)
+      category.similar.forEach((subCategory) => {
+        allCategories.push(subCategory)
+      })
+    })
+    setAvailableCategories(allCategories)
 
     // Socket listener for real-time updates
     const socket = io(API_BASE_URL, { withCredentials: true })
@@ -149,33 +170,65 @@ function HomePage() {
       )
     })
 
+    socket.on("postReaction", ({ postId, likes, dislikes }) => {
+      updateReactions(postId, { likes, dislikes })
+    })
+
     return () => {
       socket.disconnect()
     }
-  }, [activeTab, token, userId])
+  }, [token, userId])
 
-  const fetchUserProfile = async () => {
+  // Fetch user activities when profile tab is active
+  useEffect(() => {
+    if (activeTab === "profile" && userId && token) {
+      fetchUserActivities()
+    }
+  }, [activeTab, userId, token])
+
+  const fetchUserActivities = async () => {
+    setActivityLoading(true)
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (response.ok) {
-        const userData = await response.json()
-        setUserProfile(userData)
-      }
-    } catch (error) {
-      console.error("Error fetching user profile:", error)
-    }
-  }
+      // Simulate fetching user activities
+      // In a real implementation, you would have an API endpoint for this
 
-  const handlePostClick = (postId) => {
-    if (!postId || postId === "undefined") {
-      console.error("Invalid postId:", postId)
-      return
+      // For now, we'll create a mock activity log based on the user's posts
+      const activities = []
+
+      // Add post creation activities
+      myPosts.forEach((post) => {
+        activities.push({
+          type: "post",
+          action: "created",
+          content: post.title,
+          target: post._id,
+          timestamp: post.createdAt,
+          category: post.category,
+        })
+
+        // Add like/dislike activities if available
+        if (post.likedBy && post.likedBy.includes(userId)) {
+          activities.push({
+            type: "reaction",
+            action: "liked",
+            content: post.title,
+            target: post._id,
+            timestamp: new Date(new Date(post.createdAt).getTime() + 1000 * 60 * 5).toISOString(), // Mock timestamp 5 minutes after post
+            category: post.category,
+          })
+        }
+      })
+
+      // Sort activities by timestamp (newest first)
+      activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+
+      setUserActivities(activities)
+    } catch (err) {
+      console.error("Failed to fetch user activities:", err)
+    } finally {
+      setActivityLoading(false)
     }
-    navigate(`/post/${postId}`)
   }
 
   const updateReactions = (postId, updatedData) => {
@@ -205,7 +258,16 @@ function HomePage() {
     )
   }
 
-  const handleLike = async (postId) => {
+  const handlePostClick = (postId) => {
+    if (!postId || postId === "undefined") {
+      console.error("Invalid postId:", postId)
+      return
+    }
+    navigate(`/post/${postId}`)
+  }
+
+  const handleLike = async (postId, e) => {
+    e.stopPropagation()
     try {
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
         method: "POST",
@@ -221,7 +283,8 @@ function HomePage() {
     }
   }
 
-  const handleDislike = async (postId) => {
+  const handleDislike = async (postId, e) => {
+    e.stopPropagation()
     try {
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
         method: "POST",
@@ -237,55 +300,143 @@ function HomePage() {
     }
   }
 
+  // Filter posts based on category
+  const getFilteredPosts = () => {
+    const postsToFilter = activeTab === "feed" ? posts : myPosts
+    if (categoryFilter === "all") return postsToFilter
+    return postsToFilter.filter((post) => post.category === categoryFilter)
+  }
+
+  // Get unique categories from posts
+  const getUniqueCategories = () => {
+    const allPosts = [...posts, ...myPosts]
+    const categories = allPosts.map((post) => post.category)
+    return ["all", ...new Set(categories)].filter(Boolean)
+  }
+
+  // Toggle category selection in edit mode
+  const toggleCategorySelection = (category) => {
+    setTempSelectedCategories((prev) => {
+      if (prev.includes(category)) {
+        return prev.filter((cat) => cat !== category)
+      } else {
+        return [...prev, category]
+      }
+    })
+  }
+
+  // Save updated categories
+  const saveCategories = async () => {
+    if (!userId || !token) return
+
+    setSavingCategories(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ categories: tempSelectedCategories }),
+      })
+
+      if (response.ok) {
+        setSelectedCategories(tempSelectedCategories)
+        setEditingCategories(false)
+        // Update user profile with new categories
+        setUserProfile((prev) => ({
+          ...prev,
+          categories: tempSelectedCategories,
+        }))
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.msg || "Failed to update categories")
+      }
+    } catch (err) {
+      console.error("Failed to save categories:", err)
+      alert("Failed to save your categories. Please try again.")
+    } finally {
+      setSavingCategories(false)
+    }
+  }
+
   // Function to render post cards
-  const renderPostCards = (postsToRender) => {
+  const renderPostCards = () => {
+    const filteredPosts = getFilteredPosts()
+
     if (loading) {
-      return <p>Loading posts...</p>
-    }
-
-    if (postsToRender.length === 0) {
-      return <p>No posts available.</p>
-    }
-
-    return postsToRender.map((post) => (
-      <div className="card mb-4 shadow-sm" key={post._id} style={{ cursor: "pointer" }}>
-        <div className="card-body" onClick={() => handlePostClick(post._id)}>
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">{post.title}</h5>
-            <span className="badge bg-primary">{post.category || "Uncategorized"}</span>
+      return (
+        <div className="d-flex justify-content-center my-5">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="text-muted small">
-            by {post.user?.username || "Unknown User"} • {formatTimeAgo(post.createdAt)}
-          </p>
-          {post.coverImage && (
+        </div>
+      )
+    }
+
+    if (filteredPosts.length === 0) {
+      return (
+        <div className="text-center my-5 py-5">
+          <div className="mb-4">
+            <i className="bi bi-journal-text text-secondary" style={{ fontSize: "4rem" }}></i>
+          </div>
+          <h4 className="text-secondary">No posts available</h4>
+          <p className="text-muted">Be the first to create a post in this category!</p>
+          <button className="btn btn-primary mt-2" onClick={() => navigate("/create-post")}>
+            Create a Post
+          </button>
+        </div>
+      )
+    }
+
+    return filteredPosts.map((post) => (
+      <div
+        className="card mb-4 border-0 shadow-sm rounded-3 overflow-hidden hover-card"
+        key={post._id}
+        onClick={() => handlePostClick(post._id)}
+        style={{ cursor: "pointer" }}
+      >
+        {post.coverImage && (
+          <div className="position-relative overflow-hidden" style={{ height: "200px" }}>
             <img
               src={`data:image/jpeg;base64,${post.coverImage}`}
               alt="Post Cover"
-              className="img-fluid mb-3"
-              style={{ maxHeight: "200px", objectFit: "cover" }}
+              className="w-100 h-100"
+              style={{ objectFit: "cover" }}
             />
-          )}
+          </div>
+        )}
+        <div className="card-body">
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="badge bg-primary rounded-pill px-3 py-2">{post.category || "Uncategorized"}</span>
+            <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
+          </div>
+          <h5 className="card-title mb-1">{post.title}</h5>
+          <p className="text-muted small mb-3">
+            by <span className="fw-bold">{post.user?.username || "Unknown User"}</span>
+          </p>
 
-          <div className="d-flex justify-content-start align-items-center gap-3 mt-2">
-            <button
-              className="btn btn-outline-success btn-sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleLike(post._id)
-              }}
-            >
-              👍 {post.likes || 0}
-            </button>
-            <button
-              className="btn btn-outline-danger btn-sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDislike(post._id)
-              }}
-            >
-              👎 {post.dislikes || 0}
-            </button>
-            <span className="text-muted ms-2">💬 {post.commentCount || 0} comments</span>
+          <div className="d-flex justify-content-between align-items-center mt-3">
+            <div className="d-flex gap-3">
+              <button
+                className="btn btn-sm btn-outline-primary rounded-pill d-flex align-items-center gap-1"
+                onClick={(e) => handleLike(post._id, e)}
+              >
+                <i className="bi bi-hand-thumbs-up"></i>
+                <span>{post.likes || 0}</span>
+              </button>
+              <button
+                className="btn btn-sm btn-outline-danger rounded-pill d-flex align-items-center gap-1"
+                onClick={(e) => handleDislike(post._id, e)}
+              >
+                <i className="bi bi-hand-thumbs-down"></i>
+                <span>{post.dislikes || 0}</span>
+              </button>
+            </div>
+            <div className="d-flex align-items-center text-muted">
+              <i className="bi bi-chat-left-text me-1"></i>
+              <span>{post.commentCount || 0} comments</span>
+            </div>
           </div>
         </div>
       </div>
@@ -293,108 +444,237 @@ function HomePage() {
   }
 
   return (
-    <div className="d-flex vh-100">
-      <div className="p-3 border-end bg-light" style={{ width: "250px" }}>
-        <h5 className="fw-bold">Home Page</h5>
-        <ul className="nav flex-column">
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === "posts" ? "active" : ""}`}
-              onClick={() => setActiveTab("posts")}
-              style={{
-                border: "none",
-                background: "none",
-                padding: "5px",
-                cursor: "pointer",
-                fontWeight: "bold",
-              }}
-            >
-              Posts
-            </button>
-
-            {activeTab === "posts" && (
-              <ul className="nav flex-column ms-3 mt-2">
-                <li className="nav-item">
-                  <button
-                    className={`nav-link ${activeSubTab === "feed" ? "active" : ""}`}
-                    onClick={() => setActiveSubTab("feed")}
-                    style={{
-                      border: "none",
-                      background: "none",
-                      padding: "5px",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    Feed
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button
-                    className={`nav-link ${activeSubTab === "myPosts" ? "active" : ""}`}
-                    onClick={() => setActiveSubTab("myPosts")}
-                    style={{
-                      border: "none",
-                      background: "none",
-                      padding: "5px",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    My Posts
-                  </button>
-                </li>
-              </ul>
-            )}
-          </li>
-          <li className="nav-item">
-            <button
-              className={`nav-link ${activeTab === "profile" ? "active" : ""}`}
-              onClick={() => setActiveTab("profile")}
-              style={{
-                border: "none",
-                background: "none",
-                padding: "5px",
-                cursor: "pointer",
-                fontWeight: "bold",
-              }}
-            >
-              Profile
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div className="flex-grow-1 p-4">
-        {activeTab === "posts" && (
-          <>
-            <h4>{activeSubTab === "feed" ? "Posts Feed" : "My Posts"}</h4>
-            <div style={{ maxWidth: "800px" }}>
-              {activeSubTab === "feed" ? renderPostCards(posts) : renderPostCards(myPosts)}
+    <div className="container-fluid p-0">
+      <div className="row g-0">
+        {/* Sidebar */}
+        <div className="col-lg-3 col-md-4 bg-light border-end sidebar">
+          <div className="p-4">
+            <div className="d-flex align-items-center mb-4">
+              <div
+                className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3"
+                style={{ width: "50px", height: "50px" }}
+              >
+                <span className="text-white fw-bold fs-4">{userProfile?.username?.charAt(0).toUpperCase() || "U"}</span>
+              </div>
+              <div>
+                <h5 className="mb-0">{userProfile?.username || "Guest"}</h5>
+                <p className="text-muted mb-0 small">{userProfile?.email || ""}</p>
+              </div>
             </div>
-          </>
-        )}
 
-        {activeTab === "profile" && (
-          <>
-            <h4>Your Profile</h4>
-            <div className="card p-4 shadow-sm" style={{ maxWidth: "800px" }}>
-              {!token ? (
-                <div className="alert alert-warning">
-                  Please <a href="/login">login</a> to view your profile.
+            <div className="list-group list-group-flush border-0 rounded-3 mb-4">
+              <button
+                className={`list-group-item list-group-item-action d-flex align-items-center ${
+                  activeTab === "feed" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("feed")}
+              >
+                <i className="bi bi-grid me-3"></i>
+                Feed
+              </button>
+              <button
+                className={`list-group-item list-group-item-action d-flex align-items-center ${
+                  activeTab === "myPosts" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("myPosts")}
+              >
+                <i className="bi bi-file-earmark-text me-3"></i>
+                My Posts
+              </button>
+              <button
+                className={`list-group-item list-group-item-action d-flex align-items-center ${
+                  activeTab === "profile" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("profile")}
+              >
+                <i className="bi bi-person me-3"></i>
+                Profile
+              </button>
+            </div>
+
+            {(activeTab === "feed" || activeTab === "myPosts") && (
+              <div className="mb-4">
+                <h6 className="text-uppercase text-muted mb-3 small fw-bold">Categories</h6>
+                <div className="list-group list-group-flush border-0 rounded-3">
+                  <button
+                    className={`list-group-item list-group-item-action ${categoryFilter === "all" ? "active" : ""}`}
+                    onClick={() => setCategoryFilter("all")}
+                  >
+                    All Categories
+                  </button>
+                  {selectedCategories.map((category, index) => (
+                    <button
+                      key={index}
+                      className={`list-group-item list-group-item-action ${categoryFilter === category ? "active" : ""}`}
+                      onClick={() => setCategoryFilter(category)}
+                    >
+                      {category}
+                    </button>
+                  ))}
                 </div>
-              ) : userProfile ? (
-                <>
-                  <h5>Username: {userProfile.username}</h5>
-                  <p>Email: {userProfile.email}</p>
-                  <p>Bio: {userProfile.bio || "No bio available"}</p>
-                </>
-              ) : (
-                <p>Loading profile...</p>
-              )}
-            </div>
-          </>
-        )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="col-lg-9 col-md-8 main-content">
+          <div className="container py-4">
+            {(activeTab === "feed" || activeTab === "myPosts") && (
+              <>
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <h4 className="fw-bold mb-0">
+                    {activeTab === "feed" ? (
+                      <span className="d-flex align-items-center">
+                        <i className="bi bi-collection me-2"></i>
+                        Your Feed
+                      </span>
+                    ) : (
+                      <span className="d-flex align-items-center">
+                        <i className="bi bi-journal-text me-2"></i>
+                        My Posts
+                      </span>
+                    )}
+                  </h4>
+                </div>
+                <div className="row">
+                  <div className="col-lg-12">{renderPostCards()}</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === "profile" && (
+              <>
+                <div className="card border-0 shadow-sm rounded-3 mb-4">
+                  <div className="card-body p-4">
+                    <div className="d-flex align-items-center mb-4">
+                      <div
+                        className="bg-primary rounded-circle d-flex align-items-center justify-content-center"
+                        style={{ width: "80px", height: "80px" }}
+                      >
+                        <span className="text-white fw-bold fs-1">
+                          {userProfile?.username?.charAt(0).toUpperCase() || "U"}
+                        </span>
+                      </div>
+                      <div className="ms-3">
+                        <h4 className="mb-1">{userProfile?.username || "Loading..."}</h4>
+                        <p className="text-muted mb-0">{userProfile?.email || ""}</p>
+                      </div>
+                      <button className="btn btn-outline-primary ms-auto" onClick={() => navigate("/user-settings")}>
+                        <i className="bi bi-pencil me-2"></i>
+                        Edit Profile
+                      </button>
+                    </div>
+
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <div className="card bg-light border-0">
+                          <div className="card-body">
+                            <h6 className="card-title">Your Posts</h6>
+                            <h3 className="card-text">{myPosts.length}</h3>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="card bg-light border-0">
+                          <div className="card-body">
+                            <h6 className="card-title">Selected Categories</h6>
+                            <h3 className="card-text">{selectedCategories.length}</h3>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h5 className="mb-0">Your Categories</h5>
+                        {!editingCategories ? (
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => setEditingCategories(true)}>
+                            <i className="bi bi-pencil me-2"></i>
+                            Edit Categories
+                          </button>
+                        ) : (
+                          <div className="d-flex gap-2">
+                            <button
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => {
+                                setEditingCategories(false)
+                                setTempSelectedCategories(selectedCategories)
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={saveCategories}
+                              disabled={savingCategories}
+                            >
+                              {savingCategories ? (
+                                <>
+                                  <span
+                                    className="spinner-border spinner-border-sm me-2"
+                                    role="status"
+                                    aria-hidden="true"
+                                  ></span>
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="bi bi-check2 me-2"></i>
+                                  Save Changes
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {!editingCategories ? (
+                        <div className="d-flex flex-wrap gap-2">
+                          {selectedCategories.length > 0 ? (
+                            selectedCategories.map((category, index) => (
+                              <span key={index} className="badge bg-primary rounded-pill px-3 py-2">
+                                {category}
+                              </span>
+                            ))
+                          ) : (
+                            <p className="text-muted">No categories selected</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="category-selection p-3 bg-light rounded border">
+                          <p className="text-muted small mb-3">Select categories that interest you:</p>
+                          <div className="d-flex flex-wrap gap-2 mb-2">
+                            {availableCategories.map((category, index) => (
+                              <div
+                                key={index}
+                                className={`badge rounded-pill px-3 py-2 category-badge ${
+                                  tempSelectedCategories.includes(category)
+                                    ? "bg-primary"
+                                    : "bg-secondary bg-opacity-25 text-dark"
+                                }`}
+                                style={{ cursor: "pointer" }}
+                                onClick={() => toggleCategorySelection(category)}
+                              >
+                                {tempSelectedCategories.includes(category) && (
+                                  <i className="bi bi-check-circle-fill me-1"></i>
+                                )}
+                                {category}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-muted small mt-2 mb-0">
+                            Selected: {tempSelectedCategories.length} categories
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

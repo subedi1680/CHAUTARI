@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
+import "bootstrap-icons/font/bootstrap-icons.css"
 
 function Register() {
   const [formData, setFormData] = useState({
@@ -182,167 +183,294 @@ function Register() {
   }
 
   return (
-    <div className="d-flex justify-content-center align-items-center vh-100 bg-light" style={{ paddingTop: "100px" }}>
-      <div className="container text-center">
-        <h1 className="mb-4">CHAUTARI</h1>
-        <div className="card p-4 shadow-lg" style={{ maxWidth: "400px", margin: "auto" }}>
-          <h2 className="mb-3">Register</h2>
-          {error && <p className="text-danger">{error}</p>}
-          {successMessage && <p className="text-success">{successMessage}</p>}
-
-          {!otpSent ? (
-            <form onSubmit={handleSendOtp}>
-              <div className="mb-3 text-start">
-                <label className="form-label">Username</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  name="username"
-                  placeholder="Enter username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="form-label">Email</label>
-                <input
-                  type="email"
-                  className="form-control"
-                  name="email"
-                  placeholder="Enter email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
+    <div className="container-fluid bg-light min-vh-100 d-flex align-items-center justify-content-center py-5">
+      <div className="row w-100 justify-content-center">
+        <div className="col-lg-6 col-md-8 col-sm-10">
+          <div className="card border-0 shadow-lg rounded-4 overflow-hidden">
+            <div className="card-body p-5">
+              <div className="text-center mb-4">
+                <h2 className="fw-bold text-primary mb-1">Create Your Account</h2>
+                <p className="text-muted">Join CHAUTARI community today</p>
               </div>
 
-              <div className="mb-3 text-start">
-                <label className="form-label">Date of Birth</label>
-                <div className="d-flex gap-2">
-                  <select className="form-select" name="day" value={formData.day} onChange={handleChange} required>
-                    <option value="">Day</option>
-                    {[...Array(31)].map((_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {i + 1}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select className="form-select" name="month" value={formData.month} onChange={handleChange} required>
-                    <option value="">Month</option>
-                    {[
-                      "January",
-                      "February",
-                      "March",
-                      "April",
-                      "May",
-                      "June",
-                      "July",
-                      "August",
-                      "September",
-                      "October",
-                      "November",
-                      "December",
-                    ].map((month, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {month}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select className="form-select" name="year" value={formData.year} onChange={handleChange} required>
-                    <option value="">Year</option>
-                    {[...Array(100)].map((_, i) => {
-                      const year = new Date().getFullYear() - i
-                      return (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      )
-                    })}
-                  </select>
+              {error && (
+                <div className="alert alert-danger" role="alert">
+                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                  {error}
                 </div>
-              </div>
+              )}
 
-              <div className="mb-3 text-start">
-                <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  name="password"
-                  placeholder="Enter password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
-                <div className="mt-2 small">
-                  <p className="mb-1">Password must contain:</p>
-                  <ul className="ps-3">
-                    <li className={passwordErrors.length ? "text-success" : "text-danger"}>At least 8 characters</li>
-                    <li className={passwordErrors.uppercase ? "text-success" : "text-danger"}>
-                      At least one uppercase letter (A-Z)
-                    </li>
-                    <li className={passwordErrors.lowercase ? "text-success" : "text-danger"}>
-                      At least one lowercase letter (a-z)
-                    </li>
-                    <li className={passwordErrors.number ? "text-success" : "text-danger"}>
-                      At least one number (0-9)
-                    </li>
-                    <li className={passwordErrors.special ? "text-success" : "text-danger"}>
-                      At least one special character (@$!%*?&)
-                    </li>
-                  </ul>
+              {successMessage && (
+                <div className="alert alert-success" role="alert">
+                  <i className="bi bi-check-circle-fill me-2"></i>
+                  {successMessage}
                 </div>
-              </div>
-              <div className="mb-3 text-start">
-                <label className="form-label">Confirm Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  name="confirmPassword"
-                  placeholder="Confirm password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              <div className="d-grid gap-2 mt-3">
-                <button type="submit" className="btn btn-dark" disabled={loading}>
-                  {loading ? "Sending OTP..." : "Send OTP"}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <div className="mb-3 text-start">
-                <label className="form-label">Enter OTP sent to {formData.email}</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Enter OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="d-grid gap-2 mt-3">
-                <button type="submit" className="btn btn-dark" disabled={loading}>
-                  {loading ? "Verifying..." : "Verify & Register"}
-                </button>
-              </div>
-              <div className="mt-3">
-                <button type="button" className="btn btn-link" onClick={handleSendOtp} disabled={loading}>
-                  Resend OTP
-                </button>
-              </div>
-            </form>
-          )}
+              )}
 
-          <div className="mt-3">
-            <a href="/login" className="text-decoration-none">
-              Already have an account? Login
-            </a>
+              {!otpSent ? (
+                <form onSubmit={handleSendOtp}>
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label htmlFor="username" className="form-label">
+                        Username
+                      </label>
+                      <div className="input-group">
+                        <span className="input-group-text bg-light">
+                          <i className="bi bi-person-fill"></i>
+                        </span>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="username"
+                          name="username"
+                          placeholder="Choose a username"
+                          value={formData.username}
+                          onChange={handleChange}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label htmlFor="email" className="form-label">
+                        Email
+                      </label>
+                      <div className="input-group">
+                        <span className="input-group-text bg-light">
+                          <i className="bi bi-envelope-fill"></i>
+                        </span>
+                        <input
+                          type="email"
+                          className="form-control"
+                          id="email"
+                          name="email"
+                          placeholder="Enter your email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Date of Birth</label>
+                    <div className="row g-2">
+                      <div className="col-4">
+                        <select
+                          className="form-select"
+                          name="day"
+                          value={formData.day}
+                          onChange={handleChange}
+                          required
+                        >
+                          <option value="">Day</option>
+                          {[...Array(31)].map((_, i) => (
+                            <option key={i + 1} value={i + 1}>
+                              {i + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-4">
+                        <select
+                          className="form-select"
+                          name="month"
+                          value={formData.month}
+                          onChange={handleChange}
+                          required
+                        >
+                          <option value="">Month</option>
+                          {[
+                            "January",
+                            "February",
+                            "March",
+                            "April",
+                            "May",
+                            "June",
+                            "July",
+                            "August",
+                            "September",
+                            "October",
+                            "November",
+                            "December",
+                          ].map((month, i) => (
+                            <option key={i + 1} value={i + 1}>
+                              {month}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-4">
+                        <select
+                          className="form-select"
+                          name="year"
+                          value={formData.year}
+                          onChange={handleChange}
+                          required
+                        >
+                          <option value="">Year</option>
+                          {[...Array(100)].map((_, i) => {
+                            const year = new Date().getFullYear() - i
+                            return (
+                              <option key={year} value={year}>
+                                {year}
+                              </option>
+                            )
+                          })}
+                        </select>
+                      </div>
+                    </div>
+                    <small className="text-muted">You must be at least 18 years old to register</small>
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="password" className="form-label">
+                      Password
+                    </label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light">
+                        <i className="bi bi-lock-fill"></i>
+                      </span>
+                      <input
+                        type="password"
+                        className="form-control"
+                        id="password"
+                        name="password"
+                        placeholder="Create a password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                    <div className="mt-2 small">
+                      <p className="mb-1 fw-medium">Password must contain:</p>
+                      <ul className="list-unstyled ps-3">
+                        <li className={`mb-1 ${passwordErrors.length ? "text-success" : "text-danger"}`}>
+                          <i
+                            className={`bi ${passwordErrors.length ? "bi-check-circle-fill" : "bi-x-circle-fill"} me-2`}
+                          ></i>
+                          At least 8 characters
+                        </li>
+                        <li className={`mb-1 ${passwordErrors.uppercase ? "text-success" : "text-danger"}`}>
+                          <i
+                            className={`bi ${passwordErrors.uppercase ? "bi-check-circle-fill" : "bi-x-circle-fill"} me-2`}
+                          ></i>
+                          At least one uppercase letter (A-Z)
+                        </li>
+                        <li className={`mb-1 ${passwordErrors.lowercase ? "text-success" : "text-danger"}`}>
+                          <i
+                            className={`bi ${passwordErrors.lowercase ? "bi-check-circle-fill" : "bi-x-circle-fill"} me-2`}
+                          ></i>
+                          At least one lowercase letter (a-z)
+                        </li>
+                        <li className={`mb-1 ${passwordErrors.number ? "text-success" : "text-danger"}`}>
+                          <i
+                            className={`bi ${passwordErrors.number ? "bi-check-circle-fill" : "bi-x-circle-fill"} me-2`}
+                          ></i>
+                          At least one number (0-9)
+                        </li>
+                        <li className={`${passwordErrors.special ? "text-success" : "text-danger"}`}>
+                          <i
+                            className={`bi ${passwordErrors.special ? "bi-check-circle-fill" : "bi-x-circle-fill"} me-2`}
+                          ></i>
+                          At least one special character (@$!%*?&)
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <label htmlFor="confirmPassword" className="form-label">
+                      Confirm Password
+                    </label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light">
+                        <i className="bi bi-lock-fill"></i>
+                      </span>
+                      <input
+                        type="password"
+                        className="form-control"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        placeholder="Confirm your password"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="d-grid">
+                    <button type="submit" className="btn btn-primary btn-lg rounded-pill" disabled={loading}>
+                      {loading ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                            aria-hidden="true"
+                          ></span>
+                          Sending OTP...
+                        </>
+                      ) : (
+                        "Send OTP"
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit}>
+                  <div className="mb-4">
+                    <label htmlFor="otp" className="form-label">
+                      Enter OTP sent to {formData.email}
+                    </label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light">
+                        <i className="bi bi-shield-lock-fill"></i>
+                      </span>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="otp"
+                        placeholder="Enter 6-digit OTP"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="d-grid mb-3">
+                    <button type="submit" className="btn btn-primary btn-lg rounded-pill" disabled={loading}>
+                      {loading ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                            aria-hidden="true"
+                          ></span>
+                          Verifying...
+                        </>
+                      ) : (
+                        "Verify & Register"
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-center">
+                    <button type="button" className="btn btn-link" onClick={handleSendOtp} disabled={loading}>
+                      Resend OTP
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="text-center mt-4">
+                <p className="mb-0">
+                  Already have an account?{" "}
+                  <Link to="/login" className="text-primary fw-bold">
+                    Sign In
+                  </Link>
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

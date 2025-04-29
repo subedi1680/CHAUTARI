@@ -246,4 +246,34 @@ const loginUser = async (req, res) => {
   }
 }
 
-module.exports = { registerUser, loginUser, sendOtp, verifyOtp }
+// @desc    Verify user password for sensitive operations
+// @route   POST /api/auth/verify-password
+// @access  Private
+const verifyPassword = async (req, res) => {
+  const { password } = req.body
+
+  if (!password) {
+    return res.status(400).json({ msg: "Password is required" })
+  }
+
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" })
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password)
+
+    if (!isMatch) {
+      return res.status(401).json({ msg: "Incorrect password" })
+    }
+
+    res.status(200).json({ msg: "Password verified successfully" })
+  } catch (err) {
+    console.error("Password verification error:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+module.exports = { registerUser, loginUser, sendOtp, verifyOtp, verifyPassword }

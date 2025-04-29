@@ -1,0 +1,47 @@
+/* Fix for modal backdrop issues */
+.modal {
+    z-index: 1050 !important;
+  }
+  
+  .modal-backdrop {
+    z-index: 1040 !important;
+  }
+  
+  /* Ensure modal content is above backdrop */
+  .modal-content {
+    position: relative;
+    z-index: 1051 !important;
+  }
+  
+  /* Fix for multiple backdrops */
+  body.modal-open {
+    overflow: hidden;
+    padding-right: 0 !important;
+  }
+  
+  /* Add styles to ensure dropdowns are visible and properly positioned */
+  .dropdown-menu {
+    z-index: 1060 !important;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: visibility 0s, opacity 0.2s, transform 0.2s;
+  }
+  
+  .dropdown-menu.show {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  /* Ensure dropdown toggles have proper cursor */
+  .dropdown-toggle {
+    cursor: pointer;
+  }
+  
+  /* Fix for navbar dropdowns */
+  .navbar .dropdown-menu {
+    position: absolute !important;
+  }
+  

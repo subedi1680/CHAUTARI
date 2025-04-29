@@ -14,6 +14,7 @@ const postRoutes = require("./routes/postRoutes")
 const userRoutes = require("./routes/userRoutes")
 const commentRoutes = require("./routes/commentRoutes")
 const replyRoutes = require("./routes/replyRoutes")
+const notificationRoutes = require("./routes/notificationRoutes")
 
 dotenv.config()
 
@@ -27,21 +28,51 @@ const server = http.createServer(app)
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST", "DELETE"],
+    methods: ["GET", "POST", "DELETE", "PUT"],
+    credentials: true,
   },
+  // Add these options for better performance
+  transports: ["websocket", "polling"],
+  pingTimeout: 30000,
+  pingInterval: 25000,
+  upgradeTimeout: 10000,
+  maxHttpBufferSize: 1e8,
 })
 
-// Handle Socket.IO connection
+// Make io available globally for notifications
+global.io = io
+
+// Handle Socket.IO connection with improved error handling
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id)
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id)
+  // Join a room with the user's ID for private notifications
+  if (socket.handshake.query && socket.handshake.query.userId) {
+    const userId = socket.handshake.query.userId
+    socket.join(userId)
+    console.log(`User ${userId} joined their private room`)
+
+    // Send a confirmation to the client
+    socket.emit("socketConnected", { userId, socketId: socket.id })
+  }
+
+  // Handle errors
+  socket.on("error", (error) => {
+    console.error("Socket error:", error)
+  })
+
+  socket.on("disconnect", (reason) => {
+    console.log(`User disconnected (${reason}):`, socket.id)
   })
 })
 
 // Middlewares
-app.use(cors())
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  }),
+)
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -57,6 +88,7 @@ app.use("/api/posts", postRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api", commentRoutes)
 app.use("/api", replyRoutes)
+app.use("/api/notifications", notificationRoutes)
 
 // Test route for email configuration
 app.get("/api/test-email", (req, res) => {

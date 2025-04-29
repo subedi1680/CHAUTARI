@@ -1,10 +1,41 @@
 .zoomable {
-    transition: transform 0.3s ease;
-    cursor: zoom-in;
+  transition: transform 0.3s ease;
+  cursor: zoom-in;
+}
+
+.zoomable:hover {
+  transform: scale(1.05);
+  cursor: zoom-out;
+}
+
+.post-content {
+  line-height: 1.7;
+}
+
+.modal {
+  z-index: 1050;
+}
+
+.preview-img {
+  transition: opacity 0.2s;
+}
+
+.preview-img:hover {
+  opacity: 0.9;
+}
+
+/* Comment and reply animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  
-  .zoomable:hover {
-    transform: scale(1.75);
-    cursor: zoom-out;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
-  
+}
+
+.card {
+  animation: fadeIn 0.3s ease-out;
+}
