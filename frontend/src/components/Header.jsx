@@ -20,6 +20,9 @@ const Header = () => {
   // eslint-disable-next-line no-unused-vars
   const [activeTab, setActiveTab] = useState("")
 
+  // Check if current page is the landing page
+  const isLandingPage = location.pathname === "/"
+
   useEffect(() => {
     const checkAuth = () => {
       const token = sessionStorage.getItem("token")
@@ -46,7 +49,7 @@ const Header = () => {
         socketRef.current.disconnect()
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -276,7 +279,7 @@ const Header = () => {
   }
 
   const path = location.pathname
-  const isLoginPage = ["/", "/login"].includes(path)
+  const isLoginPage = ["/login"].includes(path)
   const isRegisterPage = path === "/register"
   const isForgotPasswordPage = path === "/forgot-password"
   const isAuthPage = isLoginPage || isRegisterPage || isForgotPasswordPage
@@ -298,10 +301,18 @@ const Header = () => {
     return date.toLocaleDateString()
   }
 
+  // Don't render the header on the landing page
+  if (isLandingPage) {
+    return null
+  }
+
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm sticky-top">
       <div className="container">
-        <Link className="navbar-brand d-flex align-items-center" to={isAuthenticated ? "/home" : "/login"}>
+        <Link
+          className="navbar-brand d-flex align-items-center"
+          to={isAuthenticated ? "/home" : isAuthPage ? "/" : "/login"}
+        >
           <img src={logo || "/placeholder.svg"} alt="CHAUTARI" height="40" className="me-2" />
           <span className="fw-bold">CHAUTARI</span>
         </Link>

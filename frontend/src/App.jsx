@@ -13,6 +13,7 @@ import PostDetails from "./pages/PostDetails"
 import EditPost from "./pages/EditPost"
 import ProtectedRoute from "./components/ProtectedRoute"
 import CategorySetup from "./pages/CategorySetup"
+import LandingPage from "./pages/LandingPage" // Import the new LandingPage component
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
 import "bootstrap-icons/font/bootstrap-icons.css"
@@ -74,11 +75,10 @@ function App() {
           <Header />
           <main className="main-content">
             <Routes>
-              <Route path="/" element={<Login />} />
+              <Route path="/" element={<LandingPage />} /> {/* Set LandingPage as the root route */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
-
               {/* Protected Routes */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/home" element={<Home />} />
@@ -87,7 +87,6 @@ function App() {
                 <Route path="/post/:postId" element={<PostDetails />} />
                 <Route path="/edit-post/:postId" element={<EditPost />} />
               </Route>
-
               {/* Route for Category Setup */}
               <Route path="/category-setup" element={<CategorySetup />} />
             </Routes>

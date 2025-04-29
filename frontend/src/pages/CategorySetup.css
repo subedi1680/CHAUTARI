@@ -1,7 +1,9 @@
+/* Update the category setup styles to match the login/register pages */
 .category-setup-container {
-  padding: 30px 0;
-  background-color: #f8f9fa;
-  min-height: 100vh;
+  /* These styles are now handled by the Bootstrap container */
+  min-height: auto;
+  padding: 0;
+  background-color: transparent;
 }
 
 .category-header {
@@ -11,7 +13,7 @@
 
 .category-header h2 {
   font-weight: 700;
-  color: #212529;
+  color: var(--bs-primary);
   margin-bottom: 10px;
 }
 
@@ -61,7 +63,7 @@
 }
 
 .category-card.selected {
-  border: 3px solid #1db954;
+  border: 3px solid var(--bs-primary);
 }
 
 .category-card.selected::after {
@@ -69,7 +71,7 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background-color: #1db954;
+  background-color: var(--bs-primary);
   color: white;
   width: 22px;
   height: 22px;
@@ -126,7 +128,7 @@
 }
 
 .similar-category-card.selected {
-  border: 2px solid #1db954;
+  border: 2px solid var(--bs-primary);
 }
 
 .similar-category-card.selected::after {
@@ -134,7 +136,7 @@
   position: absolute;
   top: 6px;
   right: 6px;
-  background-color: #1db954;
+  background-color: var(--bs-primary);
   color: white;
   width: 18px;
   height: 18px;
@@ -216,7 +218,7 @@
 }
 
 .selected-count span {
-  color: #1db954;
+  color: var(--bs-primary);
   font-weight: 700;
 }
 
