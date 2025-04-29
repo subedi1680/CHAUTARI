@@ -1,26 +1,27 @@
 // server.js
 
-const express = require("express");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
+const express = require("express")
+const mongoose = require("mongoose")
+const dotenv = require("dotenv")
+const cors = require("cors")
+const http = require("http")
+const { Server } = require("socket.io")
+const nodemailer = require("nodemailer")
 
 // Route imports
-const authRoutes = require("./routes/authRoutes");
-const postRoutes = require("./routes/postRoutes");
-const userRoutes = require("./routes/userRoutes");
-const commentRoutes = require("./routes/commentRoutes");
-const replyRoutes = require("./routes/replyRoutes");
+const authRoutes = require("./routes/authRoutes")
+const postRoutes = require("./routes/postRoutes")
+const userRoutes = require("./routes/userRoutes")
+const commentRoutes = require("./routes/commentRoutes")
+const replyRoutes = require("./routes/replyRoutes")
 
-dotenv.config();
+dotenv.config()
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const app = express()
+const PORT = process.env.PORT || 5000
 
 // Create HTTP server for socket.io
-const server = http.createServer(app);
+const server = http.createServer(app)
 
 // Initialize Socket.IO server
 const io = new Server(server, {
@@ -28,42 +29,54 @@ const io = new Server(server, {
     origin: "*",
     methods: ["GET", "POST", "DELETE"],
   },
-});
+})
 
 // Handle Socket.IO connection
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  console.log("User connected:", socket.id)
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
-});
+    console.log("User disconnected:", socket.id)
+  })
+})
 
 // Middlewares
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors())
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 
 // Attach io to every request (for real-time updates)
 app.use((req, res, next) => {
-  req.io = io;
-  next();
-});
+  req.io = io
+  next()
+})
 
 // API Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/posts", postRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api", commentRoutes);
-app.use("/api", replyRoutes); 
+app.use("/api/auth", authRoutes)
+app.use("/api/posts", postRoutes)
+app.use("/api/users", userRoutes)
+app.use("/api", commentRoutes)
+app.use("/api", replyRoutes)
+
+// Test route for email configuration
+app.get("/api/test-email", (req, res) => {
+  const emailConfig = {
+    service: process.env.EMAIL_SERVICE,
+    user: process.env.EMAIL_USER ? "Set" : "Not set",
+    password: process.env.EMAIL_PASSWORD ? "Set" : "Not set",
+  }
+
+  res.json({
+    message: "Email configuration status",
+    config: emailConfig,
+  })
+})
 
 // Connect to MongoDB and start server
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log("✅ Connected to MongoDB");
-    server.listen(PORT, () =>
-      console.log(`✅ Server running on http://localhost:${PORT}`)
-    );
+    console.log("✅ Connected to MongoDB")
+    server.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`))
   })
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err))

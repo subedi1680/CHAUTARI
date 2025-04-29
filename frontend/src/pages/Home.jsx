@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client"
 
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -35,6 +36,7 @@ function HomePage() {
   const [posts, setPosts] = useState([])
   const [myPosts, setMyPosts] = useState([])
   const [userProfile, setUserProfile] = useState(null)
+  // eslint-disable-next-line no-unused-vars
   const [selectedCategories, setSelectedCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()

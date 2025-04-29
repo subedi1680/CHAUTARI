@@ -1,146 +1,140 @@
-import "bootstrap/dist/css/bootstrap.min.css";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Select from 'react-select'; 
+"use client"
 
+import "bootstrap/dist/css/bootstrap.min.css"
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
+import Select from "react-select"
 
+// Updated category options based on our new category structure
 const categoryOptions = [
-  { value: "General & Trending", label: "General & Trending" },
-  { value: "News & Current Events", label: "News & Current Events" },
-  { value: "Ask Me Anything (AMA)", label: "Ask Me Anything (AMA)" },
-  { value: "Viral Content & Memes", label: "Viral Content & Memes" },
-  { value: "Controversial Discussions", label: "Controversial Discussions" },
+  // Main categories
+  { value: "Community Discussions", label: "Community Discussions" },
+  { value: "Technology", label: "Technology" },
+  { value: "Arts & Culture", label: "Arts & Culture" },
+  { value: "Lifestyle", label: "Lifestyle" },
+  { value: "Education", label: "Education" },
+  { value: "Health & Wellness", label: "Health & Wellness" },
+  { value: "Travel & Places", label: "Travel & Places" },
+  { value: "Food & Cuisine", label: "Food & Cuisine" },
+  { value: "Sports & Fitness", label: "Sports & Fitness" },
+  { value: "Entertainment", label: "Entertainment" },
+
+  // Community Discussions subcategories
+  { value: "Local News", label: "Local News" },
+  { value: "Current Events", label: "Current Events" },
+  { value: "Ask Me Anything", label: "Ask Me Anything" },
   { value: "Debates & Opinions", label: "Debates & Opinions" },
-  { value: "Technology & Innovation", label: "Technology & Innovation" },
-  { value: "Software Development", label: "Software Development" },
-  { value: "Artificial Intelligence (AI)", label: "Artificial Intelligence (AI)" },
-  { value: "Cybersecurity", label: "Cybersecurity" },
+  { value: "Community Help", label: "Community Help" },
+
+  // Technology subcategories
+  { value: "Software & Apps", label: "Software & Apps" },
   { value: "Gadgets & Hardware", label: "Gadgets & Hardware" },
-  { value: "Web3 & Cryptocurrency", label: "Web3 & Cryptocurrency" },
+  { value: "Digital Trends", label: "Digital Trends" },
   { value: "Tech Support", label: "Tech Support" },
-  { value: "Science & Academia", label: "Science & Academia" },
-  { value: "Physics & Astronomy", label: "Physics & Astronomy" },
-  { value: "Biology & Medicine", label: "Biology & Medicine" },
-  { value: "Environmental Science", label: "Environmental Science" },
-  { value: "Psychology & Neuroscience", label: "Psychology & Neuroscience" },
-  { value: "Engineering", label: "Engineering" },
-  { value: "Research & Academia", label: "Research & Academia" },
-  { value: "Arts & Entertainment", label: "Arts & Entertainment" },
-  { value: "Visual Arts (Painting, Digital Art)", label: "Visual Arts (Painting, Digital Art)" },
-  { value: "Film & TV Shows", label: "Film & TV Shows" },
-  { value: "Music Genres & Artists", label: "Music Genres & Artists" },
-  { value: "Books & Literature (Fantasy, Sci-Fi, Non-Fiction)", label: "Books & Literature (Fantasy, Sci-Fi, Non-Fiction)" },
-  { value: "Theater & Performing Arts", label: "Theater & Performing Arts" },
-  { value: "Fan Theories & Fandom Discussions", label: "Fan Theories & Fandom Discussions" },
-  { value: "Lifestyle & Wellness", label: "Lifestyle & Wellness" },
-  { value: "Fitness & Nutrition", label: "Fitness & Nutrition" },
-  { value: "Mental Health & Mindfulness", label: "Mental Health & Mindfulness" },
-  { value: "Travel & Adventure", label: "Travel & Adventure" },
-  { value: "Fashion & Beauty", label: "Fashion & Beauty" },
-  { value: "Home Improvement", label: "Home Improvement" },
-  { value: "Cooking & Recipes", label: "Cooking & Recipes" },
-  { value: "Hobbies & Interests", label: "Hobbies & Interests" },
-  { value: "Gaming (Video Games, Esports, Tabletop)", label: "Gaming (Video Games, Esports, Tabletop)" },
-  { value: "DIY & Crafts", label: "DIY & Crafts" },
-  { value: "Photography & Videography", label: "Photography & Videography" },
-  { value: "Gardening", label: "Gardening" },
-  { value: "Collectibles (Vinyl, Toys, Memorabilia)", label: "Collectibles (Vinyl, Toys, Memorabilia)" },
-  { value: "Outdoor Activities (Hiking, Camping)", label: "Outdoor Activities (Hiking, Camping)" },
-  { value: "Society & Culture", label: "Society & Culture" },
-  { value: "Politics & Governance", label: "Politics & Governance" },
-  { value: "Social Justice & Activism", label: "Social Justice & Activism" },
-  { value: "Philosophy & Ethics", label: "Philosophy & Ethics" },
-  { value: "History & Archaeology", label: "History & Archaeology" },
-  { value: "Language & Linguistics", label: "Language & Linguistics" },
-  { value: "Relationships & Dating", label: "Relationships & Dating" },
-  { value: "Career & Finance", label: "Career & Finance" },
-  { value: "Job Hunting & Resumes", label: "Job Hunting & Resumes" },
-  { value: "Entrepreneurship", label: "Entrepreneurship" },
-  { value: "Investing & Personal Finance", label: "Investing & Personal Finance" },
-  { value: "Frugal Living", label: "Frugal Living" },
-  { value: "Industry-Specific Discussions (Healthcare, Tech, etc.)", label: "Industry-Specific Discussions (Healthcare, Tech, etc.)" },
-  { value: "Education & Learning", label: "Education & Learning" },
-  { value: "Study Tips & Resources", label: "Study Tips & Resources" },
-  { value: "Online Courses & Certifications", label: "Online Courses & Certifications" },
-  { value: "Career Advice", label: "Career Advice" },
-  { value: "STEM Education", label: "STEM Education" },
+  { value: "Artificial Intelligence", label: "Artificial Intelligence" },
+
+  // Arts & Culture subcategories
+  { value: "Visual Arts", label: "Visual Arts" },
+  { value: "Literature & Poetry", label: "Literature & Poetry" },
+  { value: "Music", label: "Music" },
+  { value: "Cultural Traditions", label: "Cultural Traditions" },
+  { value: "Festivals & Events", label: "Festivals & Events" },
+
+  // Lifestyle subcategories
+  { value: "Fashion & Style", label: "Fashion & Style" },
+  { value: "Home & Living", label: "Home & Living" },
+  { value: "Relationships", label: "Relationships" },
+  { value: "Personal Development", label: "Personal Development" },
+  { value: "Hobbies & Crafts", label: "Hobbies & Crafts" },
+
+  // Education subcategories
+  { value: "Academic Discussions", label: "Academic Discussions" },
+  { value: "Learning Resources", label: "Learning Resources" },
+  { value: "Student Life", label: "Student Life" },
+  { value: "Career Development", label: "Career Development" },
   { value: "Language Learning", label: "Language Learning" },
-  { value: "Humor & Creativity", label: "Humor & Creativity" },
-  { value: "Memes & Jokes", label: "Memes & Jokes" },
-  { value: "Satire & Parodies", label: "Satire & Parodies" },
-  { value: "Creative Writing Prompts", label: "Creative Writing Prompts" },
-  { value: "Fan Fiction", label: "Fan Fiction" },
-  { value: "Role-Playing Games (RPGs)", label: "Role-Playing Games (RPGs)" },
-  { value: "Niche & Specialized", label: "Niche & Specialized" },
-  { value: "Paranormal & Supernatural", label: "Paranormal & Supernatural" },
-  { value: "Minimalism & Sustainability", label: "Minimalism & Sustainability" },
-  { value: "Parenting & Family Life", label: "Parenting & Family Life" },
-  { value: "Automotive & DIY Repairs", label: "Automotive & DIY Repairs" },
-  { value: "Pet Care & Animal Lovers", label: "Pet Care & Animal Lovers" },
-  { value: "Regional & Local", label: "Regional & Local" },
-  { value: "City/Country-Specific Discussions", label: "City/Country-Specific Discussions" },
-  { value: "Cultural Exchange", label: "Cultural Exchange" },
-  { value: "Local News & Events", label: "Local News & Events" },
-  { value: "Travel Guides", label: "Travel Guides" },
-  { value: "Community & Meta", label: "Community & Meta" },
-  { value: "Site Feedback & Suggestions", label: "Site Feedback & Suggestions" },
-  { value: "User Introductions", label: "User Introductions" },
-  { value: "Moderation Updates", label: "Moderation Updates" },
-  { value: "Bug Reports", label: "Bug Reports" },
-  { value: "Community Challenges & Events", label: "Community Challenges & Events" },
-  { value: "Support & Advice", label: "Support & Advice" },
-  { value: "Mental Health Support", label: "Mental Health Support" },
-  { value: "Career Counseling", label: "Career Counseling" },
-  { value: "Relationship Advice", label: "Relationship Advice" },
-  { value: "Financial Guidance", label: "Financial Guidance" },
-  { value: "Technical Help", label: "Technical Help" }
-];
+
+  // Health & Wellness subcategories
+  { value: "Mental Health", label: "Mental Health" },
+  { value: "Nutrition", label: "Nutrition" },
+  { value: "Fitness Tips", label: "Fitness Tips" },
+  { value: "Medical Advice", label: "Medical Advice" },
+  { value: "Mindfulness & Meditation", label: "Mindfulness & Meditation" },
+
+  // Travel & Places subcategories
+  { value: "Local Destinations", label: "Local Destinations" },
+  { value: "International Travel", label: "International Travel" },
+  { value: "Travel Tips", label: "Travel Tips" },
+  { value: "Adventure Stories", label: "Adventure Stories" },
+  { value: "Hidden Gems", label: "Hidden Gems" },
+
+  // Food & Cuisine subcategories
+  { value: "Recipes & Cooking", label: "Recipes & Cooking" },
+  { value: "Restaurant Reviews", label: "Restaurant Reviews" },
+  { value: "Local Delicacies", label: "Local Delicacies" },
+  { value: "Healthy Eating", label: "Healthy Eating" },
+  { value: "Food Photography", label: "Food Photography" },
+
+  // Sports & Fitness subcategories
+  { value: "Team Sports", label: "Team Sports" },
+  { value: "Individual Sports", label: "Individual Sports" },
+  { value: "Outdoor Activities", label: "Outdoor Activities" },
+  { value: "Fitness Challenges", label: "Fitness Challenges" },
+  { value: "Sports News", label: "Sports News" },
+
+  // Entertainment subcategories
+  { value: "Movies & TV Shows", label: "Movies & TV Shows" },
+  { value: "Gaming", label: "Gaming" },
+  { value: "Music Reviews", label: "Music Reviews" },
+  { value: "Books & Comics", label: "Books & Comics" },
+  { value: "Celebrity News", label: "Celebrity News" },
+]
 
 function CreateNewPost() {
   const [formData, setFormData] = useState({
     title: "",
-    category: "General & Trending",
+    category: "Community Discussions", // Updated default category
     coverImage: null,
     content: "",
-  });
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
+  })
+  const [error, setError] = useState(null)
+  const navigate = useNavigate()
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
 
   const handleFileChange = (e) => {
-    setFormData((prev) => ({ ...prev, coverImage: e.target.files[0] }));
-  };
+    setFormData((prev) => ({ ...prev, coverImage: e.target.files[0] }))
+  }
 
   const handleCategoryChange = (selectedOption) => {
-    setFormData((prev) => ({ ...prev, category: selectedOption.value }));
-  };
+    setFormData((prev) => ({ ...prev, category: selectedOption.value }))
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
+    e.preventDefault()
+    setError(null)
 
     if (!formData.title || !formData.category || !formData.content) {
-      setError("Title, category, and content are required");
-      return;
+      setError("Title, category, and content are required")
+      return
     }
 
-    const formDataToSend = new FormData();
-    formDataToSend.append("title", formData.title);
-    formDataToSend.append("category", formData.category);
-    formDataToSend.append("content", formData.content);
+    const formDataToSend = new FormData()
+    formDataToSend.append("title", formData.title)
+    formDataToSend.append("category", formData.category)
+    formDataToSend.append("content", formData.content)
     if (formData.coverImage) {
-      formDataToSend.append("coverImage", formData.coverImage);
+      formDataToSend.append("coverImage", formData.coverImage)
     }
 
     try {
-      const token = sessionStorage.getItem("token");
+      const token = sessionStorage.getItem("token")
       if (!token) {
-        setError("You are not logged in. Please log in first.");
-        return;
+        setError("You are not logged in. Please log in first.")
+        return
       }
 
       const response = await fetch("http://localhost:5000/api/posts", {
@@ -149,17 +143,17 @@ function CreateNewPost() {
           Authorization: `Bearer ${token}`,
         },
         body: formDataToSend,
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Failed to create post. Make sure you are logged in.");
+        throw new Error("Failed to create post. Make sure you are logged in.")
       }
 
-      navigate("/home");
+      navigate("/home")
     } catch (err) {
-      setError(err.message);
+      setError(err.message)
     }
-  };
+  }
 
   return (
     <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
@@ -184,7 +178,7 @@ function CreateNewPost() {
               <label className="form-label">Category</label>
               <Select
                 options={categoryOptions}
-                value={categoryOptions.find(option => option.value === formData.category)}
+                value={categoryOptions.find((option) => option.value === formData.category)}
                 onChange={handleCategoryChange}
                 placeholder="Select a category"
                 required
@@ -211,13 +205,15 @@ function CreateNewPost() {
               <button type="button" className="btn btn-secondary" onClick={() => navigate("/home")}>
                 Cancel
               </button>
-              <button type="submit" className="btn btn-dark">Publish</button>
+              <button type="submit" className="btn btn-dark">
+                Publish
+              </button>
             </div>
           </form>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default CreateNewPost;
+export default CreateNewPost

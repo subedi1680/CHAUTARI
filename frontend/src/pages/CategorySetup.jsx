@@ -1,304 +1,188 @@
-import { useState, useContext, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import UserContext from "../components/UserContext"; 
+"use client"
 
-const allCategories = [
-  {
-    name: "General & Trending",
-    similar: []
-  },
-  {
-    name: "News & Current Events",
-    similar: []
-  },
-  {
-    name: "Ask Me Anything (AMA)",
-    similar: []
-  },
-  {
-    name: "Viral Content & Memes",
-    similar: []
-  },
-  {
-    name: "Controversial Discussions",
-    similar: []
-  },
-  {
-    name: "Debates & Opinions",
-    similar: []
-  },
-  {
-    name: "Technology & Innovation",
-    similar: [
-      "Software Development", 
-      "Artificial Intelligence (AI)", 
-      "Cybersecurity", 
-      "Gadgets & Hardware", 
-      "Web3 & Cryptocurrency", 
-      "Tech Support"
-    ]
-  },
-  {
-    name: "Science & Academia",
-    similar: [
-      "Physics & Astronomy", 
-      "Biology & Medicine", 
-      "Environmental Science", 
-      "Psychology & Neuroscience", 
-      "Engineering", 
-      "Research & Academia"
-    ]
-  },
-  {
-    name: "Arts & Entertainment",
-    similar: [
-      "Visual Arts (Painting, Digital Art)", 
-      "Film & TV Shows", 
-      "Music Genres & Artists", 
-      "Books & Literature (Fantasy, Sci-Fi, Non-Fiction)", 
-      "Theater & Performing Arts", 
-      "Fan Theories & Fandom Discussions"
-    ]
-  },
-  {
-    name: "Lifestyle & Wellness",
-    similar: [
-      "Fitness & Nutrition", 
-      "Mental Health & Mindfulness", 
-      "Travel & Adventure", 
-      "Fashion & Beauty", 
-      "Home Improvement", 
-      "Cooking & Recipes"
-    ]
-  },
-  {
-    name: "Hobbies & Interests",
-    similar: [
-      "Gaming (Video Games, Esports, Tabletop)", 
-      "DIY & Crafts", 
-      "Photography & Videography", 
-      "Gardening", 
-      "Collectibles (Vinyl, Toys, Memorabilia)", 
-      "Outdoor Activities (Hiking, Camping)"
-    ]
-  },
-  {
-    name: "Career & Finance",
-    similar: [
-      "Job Hunting & Resumes", 
-      "Entrepreneurship", 
-      "Investing & Personal Finance", 
-      "Frugal Living", 
-      "Industry-Specific Discussions (Healthcare, Tech, etc.)"
-    ]
-  },
-  {
-    name: "Society & Culture",
-    similar: [
-      "Politics & Governance", 
-      "Social Justice & Activism", 
-      "Philosophy & Ethics", 
-      "History & Archaeology", 
-      "Language & Linguistics", 
-      "Relationships & Dating"
-    ]
-  },
-  {
-    name: "Education & Learning",
-    similar: [
-      "Study Tips & Resources", 
-      "Online Courses & Certifications", 
-      "Career Advice", 
-      "STEM Education", 
-      "Language Learning"
-    ]
-  },
-  {
-    name: "Humor & Creativity",
-    similar: [
-      "Memes & Jokes", 
-      "Satire & Parodies", 
-      "Creative Writing Prompts", 
-      "Fan Fiction", 
-      "Role-Playing Games (RPGs)"
-    ]
-  },
-  {
-    name: "Niche & Specialized",
-    similar: [
-      "Paranormal & Supernatural", 
-      "Minimalism & Sustainability", 
-      "Parenting & Family Life", 
-      "Automotive & DIY Repairs", 
-      "Pet Care & Animal Lovers"
-    ]
-  },
-  {
-    name: "Regional & Local",
-    similar: [
-      "City/Country-Specific Discussions", 
-      "Cultural Exchange", 
-      "Local News & Events", 
-      "Travel Guides"
-    ]
-  },
-  {
-    name: "Community & Meta",
-    similar: [
-      "Site Feedback & Suggestions", 
-      "User Introductions", 
-      "Moderation Updates", 
-      "Bug Reports", 
-      "Community Challenges & Events"
-    ]
-  },
-  {
-    name: "Support & Advice",
-    similar: [
-      "Mental Health Support", 
-      "Career Counseling", 
-      "Relationship Advice", 
-      "Financial Guidance", 
-      "Technical Help"
-    ]
-  }
-];
+import { useState, useContext, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import UserContext from "../components/UserContext"
+import { categoryStructure, categoryImages } from "../utils/categoryData"
+import "./CategorySetup.css"
 
 const CategorySetup = () => {
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [showSimilarCategories, setShowSimilarCategories] = useState({});
-  const { markCategorySetupCompleted } = useContext(UserContext);
-  const navigate = useNavigate();
+  const [selectedCategories, setSelectedCategories] = useState([])
+  const [expandedCategories, setExpandedCategories] = useState({})
+  const [loading, setLoading] = useState(false)
+  const { markCategorySetupCompleted } = useContext(UserContext)
+  const navigate = useNavigate()
 
   useEffect(() => {
     // If category setup is already completed, skip the setup and navigate to home
-    const userId = sessionStorage.getItem("userId");
-    const token = sessionStorage.getItem("token");
+    const userId = sessionStorage.getItem("userId")
+    const token = sessionStorage.getItem("token")
 
     const fetchUserData = async () => {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const user = await response.json();
-      if (user.categorySetupCompleted) {
-        navigate("/home");
+      try {
+        const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const user = await response.json()
+        if (user.categorySetupCompleted) {
+          navigate("/home")
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error)
       }
-    };
+    }
 
-    fetchUserData();
-  }, [navigate]);
+    if (userId && token) {
+      fetchUserData()
+    }
+  }, [navigate])
 
-  const handleCategoryChange = (category) => {
+  const handleCategoryClick = (category, index) => {
+    // Toggle selection
     setSelectedCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((item) => item !== category)
-        : [...prev, category]
-    );
-  };
+      prev.includes(category) ? prev.filter((item) => item !== category) : [...prev, category],
+    )
 
-  const handleSimilarCategoryChange = (similarCategory) => {
+    // Toggle expanded state for categories with similar items
+    if (categoryStructure[index].similar.length > 0) {
+      setExpandedCategories((prev) => ({
+        ...prev,
+        [category]: !prev[category],
+      }))
+    }
+  }
+
+  const handleSimilarCategoryClick = (similarCategory) => {
     setSelectedCategories((prev) =>
-      prev.includes(similarCategory)
-        ? prev.filter((item) => item !== similarCategory)
-        : [...prev, similarCategory]
-    );
-  };
-
-  const handleCategoryToggle = (category) => {
-    setShowSimilarCategories((prev) => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
-  };
+      prev.includes(similarCategory) ? prev.filter((item) => item !== similarCategory) : [...prev, similarCategory],
+    )
+  }
 
   const handleSubmit = async () => {
-    const userId = sessionStorage.getItem("userId");
-    const token = sessionStorage.getItem("token");
-
-    // Send the updated categories and mark category setup as completed in the database
-    const response = await fetch(`http://localhost:5000/api/users/${userId}/categories`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ categories: selectedCategories }),
-    });
-
-    if (response.ok) {
-      markCategorySetupCompleted(); 
-      navigate("/home"); 
-    } else {
-      console.error("Failed to save category setup");
+    if (selectedCategories.length === 0) {
+      alert("Please select at least one category")
+      return
     }
-  };
+
+    setLoading(true)
+    const userId = sessionStorage.getItem("userId")
+    const token = sessionStorage.getItem("token")
+
+    try {
+      // Send the updated categories and mark category setup as completed in the database
+      const response = await fetch(`http://localhost:5000/api/users/${userId}/categories`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ categories: selectedCategories }),
+      })
+
+      if (response.ok) {
+        markCategorySetupCompleted()
+        navigate("/home")
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.msg || "Failed to save category setup")
+      }
+    } catch (error) {
+      console.error("Failed to save category setup:", error)
+      alert("Failed to save your categories. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="container my-5">
-      <h2 className="text-center mb-4">Select Your Categories</h2>
-      <div className="row">
-        {allCategories.map((category, index) => (
-          <div key={index} className="col-md-4 mb-3">
-            <div className="category-card">
-              <h5>{category.name}</h5>
-              <div className="form-check">
-                <input
-                  type="checkbox"
-                  id={category.name}
-                  checked={selectedCategories.includes(category.name)}
-                  onChange={() => handleCategoryChange(category.name)}
-                  className="form-check-input"
-                />
-                <label htmlFor={category.name} className="form-check-label">
-                  Select {category.name}
-                </label>
-              </div>
+    <div className="category-setup-container">
+      <div className="container">
+        <div className="category-header">
+          <h2>Personalize Your CHAUTARI Experience</h2>
+          <p>
+            Select topics that interest you to customize your feed. We&apos;ll show you more content from your selected
+            categories.
+          </p>
+        </div>
 
-              {/* Show similar categories only if the similar array is not empty */}
-              {category.similar.length > 0 && (
-                <div className="mt-3">
-                  <button
-                    className="btn btn-outline-info btn-sm"
-                    onClick={() => handleCategoryToggle(category.name)}
-                  >
-                    {showSimilarCategories[category.name] ? "Hide" : "Show"} Similar Categories
-                  </button>
+        <div className="selected-count">
+          You&apos;ve selected <span>{selectedCategories.length}</span>{" "}
+          {selectedCategories.length === 1 ? "category" : "categories"}
+          {selectedCategories.length > 0 && ". Great choice!"}
+        </div>
 
-                  {showSimilarCategories[category.name] && (
-                    <div className="similar-categories mt-2">
-                      <h6>Similar Categories:</h6>
-                      <ul>
-                        {category.similar.map((similarCategory, idx) => (
-                          <li key={idx}>
-                            <div className="form-check">
-                              <input
-                                type="checkbox"
-                                id={similarCategory}
-                                checked={selectedCategories.includes(similarCategory)}
-                                onChange={() => handleSimilarCategoryChange(similarCategory)}
-                                className="form-check-input"
-                              />
-                              <label htmlFor={similarCategory} className="form-check-label">
-                                {similarCategory}
-                              </label>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+        {/* Main categories grid */}
+        <div className="category-grid">
+          {categoryStructure.map((category, index) => (
+            <div
+              key={index}
+              className={`category-card ${selectedCategories.includes(category.name) ? "selected" : ""}`}
+              onClick={() => handleCategoryClick(category.name, index)}
+            >
+              <img
+                src={categoryImages[category.name] || "/placeholder.svg"}
+                alt={category.name}
+                className="category-image"
+              />
+              <div className="category-name">{category.name}</div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <div className="text-center mt-4">
-        <button onClick={handleSubmit} className="btn btn-dark">Save and Go to Home</button>
+        {/* Categories with similar items */}
+        <div className="categories-wrapper">
+          {categoryStructure.map(
+            (category, index) =>
+              category.similar.length > 0 &&
+              expandedCategories[category.name] && (
+                <div className="category-group" key={`group-${index}`}>
+                  <div className="category-item">
+                    <div
+                      className={`category-card ${selectedCategories.includes(category.name) ? "selected" : ""}`}
+                      onClick={() => handleCategoryClick(category.name, index)}
+                    >
+                      <img
+                        src={categoryImages[category.name] || "/placeholder.svg"}
+                        alt={category.name}
+                        className="category-image"
+                      />
+                      <div className="category-name">{category.name}</div>
+                    </div>
+
+                    <div className="similar-label">Similar to {category.name}</div>
+
+                    <div className="similar-categories">
+                      {category.similar.map((similarCategory, idx) => (
+                        <div
+                          key={idx}
+                          className={`similar-category-card ${
+                            selectedCategories.includes(similarCategory) ? "selected" : ""
+                          }`}
+                          onClick={() => handleSimilarCategoryClick(similarCategory)}
+                        >
+                          <img
+                            src={categoryImages[similarCategory] || "/placeholder.svg"}
+                            alt={similarCategory}
+                            className="similar-category-image"
+                          />
+                          <div className="similar-category-name">{similarCategory}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ),
+          )}
+        </div>
+
+        <div className="action-buttons">
+          <button onClick={handleSubmit} className="save-button" disabled={selectedCategories.length === 0 || loading}>
+            {loading ? "Saving..." : "Save & Continue"}
+          </button>
+        </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default CategorySetup;
+export default CategorySetup
