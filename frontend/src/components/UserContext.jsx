@@ -7,10 +7,18 @@ const UserContext = createContext()
 
 export const UserProvider = ({ children }) => {
   const [categorySetupCompleted, setCategorySetupCompleted] = useState(null)
-  const [userAvatar, setUserAvatar] = useState(sessionStorage.getItem("userAvatar") || "")
+  const userId = sessionStorage.getItem("userId")
+  const [userAvatar, setUserAvatar] = useState("")
 
-  // Load categorySetupCompleted status from sessionStorage on app load
+  // Load avatar from storage whenever userId changes
   useEffect(() => {
+    if (userId) {
+      const storedAvatar = sessionStorage.getItem(`userAvatar_${userId}`)
+      setUserAvatar(storedAvatar || "")
+    } else {
+      setUserAvatar("")
+    }
+
     const setupCompleted = sessionStorage.getItem("categorySetupCompleted")
     if (setupCompleted !== null) {
       setCategorySetupCompleted(JSON.parse(setupCompleted))
@@ -18,8 +26,12 @@ export const UserProvider = ({ children }) => {
 
     // Listen for avatar updates
     const handleAvatarUpdate = (event) => {
-      if (event.detail && event.detail.avatar) {
-        setUserAvatar(event.detail.avatar)
+      if (event.detail && event.detail.avatar && event.detail.userId) {
+        // Only update avatar if it's for the current user
+        const currentUserId = sessionStorage.getItem("userId")
+        if (event.detail.userId === currentUserId) {
+          setUserAvatar(event.detail.avatar)
+        }
       }
     }
 
@@ -28,7 +40,7 @@ export const UserProvider = ({ children }) => {
     return () => {
       window.removeEventListener("avatarUpdated", handleAvatarUpdate)
     }
-  }, [])
+  }, [userId]) // Re-run when userId changes
 
   // Set category setup completion flag in sessionStorage
   const markCategorySetupCompleted = () => {
@@ -36,17 +48,28 @@ export const UserProvider = ({ children }) => {
     sessionStorage.setItem("categorySetupCompleted", true)
   }
 
-  // Update avatar
+  // Update avatar with user-specific storage
   const updateAvatar = (avatarUrl) => {
-    setUserAvatar(avatarUrl)
-    sessionStorage.setItem("userAvatar", avatarUrl)
+    const currentUserId = sessionStorage.getItem("userId")
+    if (!currentUserId) return
 
-    // Dispatch event for other components
+    setUserAvatar(avatarUrl)
+    sessionStorage.setItem(`userAvatar_${currentUserId}`, avatarUrl)
+
+    // Dispatch event for other components with userId
     window.dispatchEvent(
       new CustomEvent("avatarUpdated", {
-        detail: { avatar: avatarUrl },
+        detail: {
+          avatar: avatarUrl,
+          userId: currentUserId,
+        },
       }),
     )
+  }
+
+  // Reset avatar state (used during logout)
+  const resetAvatar = () => {
+    setUserAvatar("")
   }
 
   return (
@@ -56,6 +79,7 @@ export const UserProvider = ({ children }) => {
         markCategorySetupCompleted,
         userAvatar,
         updateAvatar,
+        resetAvatar,
       }}
     >
       {children}

@@ -25,6 +25,27 @@ const Header = () => {
   const [activeTab, setActiveTab] = useState("")
   const notificationFetchedRef = useRef(false)
   const { userAvatar } = useContext(UserContext)
+  // eslint-disable-next-line no-unused-vars
+  const userId = sessionStorage.getItem("userId")
+
+  // Add this near the top of the component, after the existing state declarations
+  const [currentUserId, setCurrentUserId] = useState(sessionStorage.getItem("userId"))
+
+  // Get user-specific avatar
+  const getUserAvatar = () => {
+    // First try to get from context as it's most up-to-date
+    if (userAvatar) return userAvatar
+
+    // Then try to get from session storage with current user ID
+    const currentId = sessionStorage.getItem("userId")
+    if (currentId) {
+      const storedAvatar = sessionStorage.getItem(`userAvatar_${currentId}`)
+      if (storedAvatar) return storedAvatar
+    }
+
+    // Default to empty string if no avatar found
+    return ""
+  }
 
   // Check if current page is the landing page
   const isLandingPage = location.pathname === "/"
@@ -57,6 +78,30 @@ const Header = () => {
     }
     return false
   }
+
+  useEffect(() => {
+    // Update currentUserId when it changes in sessionStorage
+    const newUserId = sessionStorage.getItem("userId")
+    if (newUserId !== currentUserId) {
+      setCurrentUserId(newUserId)
+    }
+
+    // Listen for user login/logout events
+    const handleUserChange = () => {
+      const newId = sessionStorage.getItem("userId")
+      setCurrentUserId(newId)
+    }
+
+    window.addEventListener("storage", handleUserChange)
+    window.addEventListener("userLoggedIn", handleUserChange)
+    window.addEventListener("userLoggedOut", handleUserChange)
+
+    return () => {
+      window.removeEventListener("storage", handleUserChange)
+      window.removeEventListener("userLoggedIn", handleUserChange)
+      window.removeEventListener("userLoggedOut", handleUserChange)
+    }
+  }, [currentUserId])
 
   useEffect(() => {
     const checkAuth = () => {
@@ -596,7 +641,7 @@ const Header = () => {
                     <UserAvatar
                       user={{
                         username: username,
-                        avatar: userAvatar || sessionStorage.getItem("userAvatar"),
+                        avatar: getUserAvatar(),
                       }}
                       size="sm"
                       className="me-2"

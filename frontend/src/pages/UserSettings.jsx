@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 "use client"
 
 import { useState, useEffect, useContext } from "react"
@@ -23,7 +24,8 @@ function UserSettings() {
     dateOfBirth: "",
     avatar: "",
   })
-  const { updateAvatar } = useContext(UserContext)
+  const { updateAvatar, resetAvatar } = useContext(UserContext)
+  const [isAuthenticated, setIsAuthenticated] = useState(true)
 
   // Avatar state
   const [avatarFile, setAvatarFile] = useState(null)
@@ -206,8 +208,8 @@ function UserSettings() {
           avatar: data.user.avatar,
         }))
 
-        // Store avatar in session storage for immediate use across the app
-        sessionStorage.setItem("userAvatar", data.user.avatar)
+        // Store avatar in user-specific session storage
+        sessionStorage.setItem(`userAvatar_${userId}`, data.user.avatar)
 
         // Use the context to update avatar
         if (updateAvatar) {
@@ -216,7 +218,10 @@ function UserSettings() {
           // Fallback to direct event dispatch if context method is not available
           window.dispatchEvent(
             new CustomEvent("avatarUpdated", {
-              detail: { avatar: data.user.avatar },
+              detail: {
+                avatar: data.user.avatar,
+                userId: userId,
+              },
             }),
           )
         }
@@ -264,8 +269,8 @@ function UserSettings() {
         avatar: data.avatar,
       }))
 
-      // Store in session storage
-      sessionStorage.setItem("userAvatar", data.avatar)
+      // Store in user-specific session storage
+      sessionStorage.setItem(`userAvatar_${userId}`, data.avatar)
 
       // Use the context to update avatar
       if (updateAvatar) {
@@ -274,7 +279,10 @@ function UserSettings() {
         // Fallback to direct event dispatch if context method is not available
         window.dispatchEvent(
           new CustomEvent("avatarUpdated", {
-            detail: { avatar: data.avatar },
+            detail: {
+              avatar: data.avatar,
+              userId: userId,
+            },
           }),
         )
       }
@@ -477,7 +485,7 @@ function UserSettings() {
   }
 
   // Add this function to manually initialize the modal
-  // eslint-disable-next-line no-unused-vars
+   
   const initializeModal = () => {
     const modalElement = document.getElementById("deleteAccountModal")
     if (modalElement) {
@@ -515,7 +523,9 @@ function UserSettings() {
       sessionStorage.removeItem("token")
       sessionStorage.removeItem("userId")
       sessionStorage.removeItem("username")
-      sessionStorage.removeItem("userAvatar")
+      sessionStorage.removeItem(`userAvatar_${userId}`)
+      sessionStorage.removeItem("notifications")
+      sessionStorage.removeItem("unreadCount")
 
       toast.success("Your account has been deleted successfully")
 
@@ -573,6 +583,45 @@ function UserSettings() {
     }
   }, [])
 
+  // Handle logout
+  const handleLogout = () => {
+    const currentUserId = sessionStorage.getItem("userId")
+
+    // Clear user-specific avatar before clearing userId
+    if (currentUserId) {
+      // We don't remove the avatar from sessionStorage to allow for faster re-login
+      // But we do reset the context state
+      if (resetAvatar) {
+        // Use the context's resetAvatar function if available
+        resetAvatar()
+      }
+    }
+
+    // Clear session storage
+    sessionStorage.removeItem("token")
+    sessionStorage.removeItem("userId")
+    sessionStorage.removeItem("username")
+    sessionStorage.removeItem("notifications")
+    sessionStorage.removeItem("unreadCount")
+
+    // Dispatch a userLoggedOut event to notify other components
+    window.dispatchEvent(new CustomEvent("userLoggedOut"))
+
+    setIsAuthenticated(false)
+    navigate("/login")
+  }
+
+  const getVerifiedAvatar = () => {
+    // Ensure we're displaying the correct user's avatar
+    const currentId = sessionStorage.getItem("userId")
+    if (currentId && currentId === userId) {
+      if (avatarPreview) return avatarPreview
+      if (userProfile.avatar) return userProfile.avatar
+      return sessionStorage.getItem(`userAvatar_${currentId}`) || ""
+    }
+    return ""
+  }
+
   return (
     <div className="container py-5">
       <ToastContainer position="top-right" autoClose={3000} />
@@ -585,7 +634,7 @@ function UserSettings() {
               <div className="text-center mb-4">
                 {userProfile.avatar ? (
                   <img
-                    src={avatarPreview || userProfile.avatar}
+                    src={getVerifiedAvatar() || "/placeholder.svg"}
                     alt="User Avatar"
                     className="avatar avatar-xl mx-auto mb-3"
                   />
@@ -651,9 +700,9 @@ function UserSettings() {
                 <form onSubmit={handleProfileSubmit}>
                   <div className="mb-4 text-center">
                     <div className="position-relative d-inline-block">
-                      {avatarPreview || userProfile.avatar ? (
+                      {getVerifiedAvatar() ? (
                         <img
-                          src={avatarPreview || userProfile.avatar}
+                          src={getVerifiedAvatar() || "/placeholder.svg"}
                           alt="Avatar Preview"
                           className="avatar avatar-xl mb-3"
                         />

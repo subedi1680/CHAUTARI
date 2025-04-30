@@ -39,7 +39,7 @@ const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
     }
   }
 
-  // Determine avatar source
+  // Determine avatar source - handle both data URLs and base64 strings
   const avatarSrc = user?.avatar
     ? user.avatar.startsWith("data:")
       ? user.avatar
