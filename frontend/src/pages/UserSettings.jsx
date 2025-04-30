@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useContext } from "react"
 import { useNavigate } from "react-router-dom"
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
 import { toast, ToastContainer } from "react-toastify"
 import "react-toastify/dist/ReactToastify.css"
 import * as bootstrap from "bootstrap"
+import UserAvatar from "../components/UserAvatar"
+import UserContext from "../components/UserContext"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
 
@@ -19,7 +21,13 @@ function UserSettings() {
     email: "",
     bio: "",
     dateOfBirth: "",
+    avatar: "",
   })
+  const { updateAvatar } = useContext(UserContext)
+
+  // Avatar state
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState(null)
 
   // Password change state
   const [passwordData, setPasswordData] = useState({
@@ -87,6 +95,7 @@ function UserSettings() {
           email: userData.email || "",
           bio: userData.bio || "",
           dateOfBirth: formattedDOB,
+          avatar: userData.avatar || "",
         })
 
         // Set notification preferences if available
@@ -109,6 +118,15 @@ function UserSettings() {
       ...prev,
       [name]: value,
     }))
+  }
+
+  // Handle avatar file selection
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setAvatarFile(file)
+      setAvatarPreview(URL.createObjectURL(file))
+    }
   }
 
   // Handle password form input changes
@@ -159,26 +177,115 @@ function UserSettings() {
     setLoading(true)
 
     try {
-      // This is a placeholder for the API endpoint - you'll need to create this endpoint in your backend
+      const formData = new FormData()
+      formData.append("bio", userProfile.bio)
+
+      // Add avatar if selected
+      if (avatarFile) {
+        formData.append("avatar", avatarFile)
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/users/${userId}/profile`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          bio: userProfile.bio,
-        }),
+        body: formData,
       })
 
       if (!response.ok) {
         throw new Error("Failed to update profile")
       }
 
+      const data = await response.json()
+
+      // Update local state with new avatar
+      if (data.user && data.user.avatar) {
+        setUserProfile((prev) => ({
+          ...prev,
+          avatar: data.user.avatar,
+        }))
+
+        // Store avatar in session storage for immediate use across the app
+        sessionStorage.setItem("userAvatar", data.user.avatar)
+
+        // Use the context to update avatar
+        if (updateAvatar) {
+          updateAvatar(data.user.avatar)
+        } else {
+          // Fallback to direct event dispatch if context method is not available
+          window.dispatchEvent(
+            new CustomEvent("avatarUpdated", {
+              detail: { avatar: data.user.avatar },
+            }),
+          )
+        }
+      }
+
       toast.success("Profile updated successfully!")
     } catch (error) {
       console.error("Error updating profile:", error)
       toast.error("Failed to update profile. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Add a dedicated function to handle avatar updates
+  const handleAvatarUpdate = async () => {
+    if (!avatarFile) {
+      toast.error("Please select an image first")
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("avatar", avatarFile)
+
+      const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update avatar")
+      }
+
+      const data = await response.json()
+
+      // Update local state
+      setUserProfile((prev) => ({
+        ...prev,
+        avatar: data.avatar,
+      }))
+
+      // Store in session storage
+      sessionStorage.setItem("userAvatar", data.avatar)
+
+      // Use the context to update avatar
+      if (updateAvatar) {
+        updateAvatar(data.avatar)
+      } else {
+        // Fallback to direct event dispatch if context method is not available
+        window.dispatchEvent(
+          new CustomEvent("avatarUpdated", {
+            detail: { avatar: data.avatar },
+          }),
+        )
+      }
+
+      toast.success("Avatar updated successfully!")
+
+      // Clear the file input
+      setAvatarFile(null)
+    } catch (error) {
+      console.error("Error updating avatar:", error)
+      toast.error("Failed to update avatar. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -408,6 +515,7 @@ function UserSettings() {
       sessionStorage.removeItem("token")
       sessionStorage.removeItem("userId")
       sessionStorage.removeItem("username")
+      sessionStorage.removeItem("userAvatar")
 
       toast.success("Your account has been deleted successfully")
 
@@ -474,6 +582,20 @@ function UserSettings() {
         <div className="col-lg-3 mb-4">
           <div className="card border-0 shadow-sm">
             <div className="card-body">
+              <div className="text-center mb-4">
+                {userProfile.avatar ? (
+                  <img
+                    src={avatarPreview || userProfile.avatar}
+                    alt="User Avatar"
+                    className="avatar avatar-xl mx-auto mb-3"
+                  />
+                ) : (
+                  <UserAvatar user={userProfile} size="xl" className="mx-auto mb-3" />
+                )}
+                <h5 className="mb-0">{userProfile.username}</h5>
+                <p className="text-muted small">{userProfile.email}</p>
+              </div>
+
               <h5 className="card-title mb-4">Settings</h5>
 
               <div className="nav flex-column nav-pills">
@@ -527,6 +649,59 @@ function UserSettings() {
               </div>
               <div className="card-body">
                 <form onSubmit={handleProfileSubmit}>
+                  <div className="mb-4 text-center">
+                    <div className="position-relative d-inline-block">
+                      {avatarPreview || userProfile.avatar ? (
+                        <img
+                          src={avatarPreview || userProfile.avatar}
+                          alt="Avatar Preview"
+                          className="avatar avatar-xl mb-3"
+                        />
+                      ) : (
+                        <UserAvatar user={userProfile} size="xl" className="mb-3" />
+                      )}
+                      <label
+                        htmlFor="avatar"
+                        className="btn btn-sm btn-primary position-absolute bottom-0 end-0 rounded-circle"
+                      >
+                        <i className="bi bi-pencil"></i>
+                        <span className="sr-only">Change Avatar</span>
+                      </label>
+                    </div>
+                    <input
+                      type="file"
+                      id="avatar"
+                      name="avatar"
+                      accept="image/*"
+                      className="d-none"
+                      onChange={handleAvatarChange}
+                    />
+                    <div className="small text-muted mt-1">Click the pencil icon to change your avatar</div>
+
+                    {/* Add a button to update avatar separately */}
+                    {avatarFile && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary mt-2"
+                        onClick={handleAvatarUpdate}
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <>
+                            <span
+                              className="spinner-border spinner-border-sm me-2"
+                              role="status"
+                              aria-hidden="true"
+                            ></span>
+                            Updating Avatar...
+                          </>
+                        ) : (
+                          <>Update Avatar</>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
                   <div className="row mb-3">
                     <div className="col-md-6">
                       <label htmlFor="username" className="form-label">

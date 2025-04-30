@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 5000
 // Create HTTP server for socket.io
 const server = http.createServer(app)
 
-// Initialize Socket.IO server
+// Set up Socket.io
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -39,30 +39,28 @@ const io = new Server(server, {
   maxHttpBufferSize: 1e8,
 })
 
-// Make io available globally for notifications
+// Make io available globally
 global.io = io
 
-// Handle Socket.IO connection with improved error handling
+// Set up Socket.io connection handling
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id)
+  console.log("New client connected:", socket.id)
 
-  // Join a room with the user's ID for private notifications
-  if (socket.handshake.query && socket.handshake.query.userId) {
-    const userId = socket.handshake.query.userId
+  // Get userId from query params
+  const userId = socket.handshake.query.userId
+
+  if (userId) {
+    // Join a room with the user's ID for private notifications
     socket.join(userId)
     console.log(`User ${userId} joined their private room`)
 
-    // Send a confirmation to the client
+    // Confirm connection to client
     socket.emit("socketConnected", { userId, socketId: socket.id })
   }
 
-  // Handle errors
-  socket.on("error", (error) => {
-    console.error("Socket error:", error)
-  })
-
-  socket.on("disconnect", (reason) => {
-    console.log(`User disconnected (${reason}):`, socket.id)
+  // Handle disconnection
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id)
   })
 })
 
@@ -73,10 +71,10 @@ app.use(
     credentials: true,
   }),
 )
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: "50mb" }))
+app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 
-// Attach io to every request (for real-time updates)
+// Make io available to routes
 app.use((req, res, next) => {
   req.io = io
   next()

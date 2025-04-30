@@ -1,16 +1,34 @@
 const express = require("express")
-const { getUserProfile, getUserActivity } = require("../controllers/userController")
+const { getUserProfile, getUserActivity, updateUserAvatar } = require("../controllers/userController")
 const authMiddleware = require("../middlewares/authMiddleware")
 const User = require("../models/User")
 const bcrypt = require("bcryptjs")
+const multer = require("multer")
 
 const router = express.Router()
+
+// Configure multer for avatar uploads
+const storage = multer.memoryStorage()
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true)
+    } else {
+      cb(new Error("Only image files are allowed"), false)
+    }
+  },
+})
 
 // Route to get user profile
 router.get("/profile", authMiddleware, getUserProfile)
 
 // Route to get user activity log
 router.get("/activity", authMiddleware, getUserActivity)
+
+// Add a dedicated route for avatar updates
+router.post("/avatar", authMiddleware, upload.single("avatar"), updateUserAvatar)
 
 // Route to update user categories (after the user selects categories)
 router.put("/:id/categories", authMiddleware, async (req, res) => {
@@ -41,8 +59,8 @@ router.put("/:id/categories", authMiddleware, async (req, res) => {
   }
 })
 
-// Update the profile update route to remove location
-router.put("/:id/profile", authMiddleware, async (req, res) => {
+// Update the profile update route to include avatar
+router.put("/:id/profile", authMiddleware, upload.single("avatar"), async (req, res) => {
   // Ensure the user can only update their own profile
   if (req.params.id !== req.user.id) {
     return res.status(403).json({ msg: "Not authorized to update this profile" })
@@ -60,9 +78,22 @@ router.put("/:id/profile", authMiddleware, async (req, res) => {
     // Update fields if provided
     if (bio !== undefined) user.bio = bio
 
+    // Handle avatar upload
+    if (req.file) {
+      const avatarBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`
+      user.avatar = avatarBase64
+    }
+
     await user.save()
 
-    res.status(200).json({ msg: "Profile updated successfully" })
+    res.status(200).json({
+      msg: "Profile updated successfully",
+      user: {
+        username: user.username,
+        bio: user.bio,
+        avatar: user.avatar,
+      },
+    })
   } catch (error) {
     console.error("Error updating profile:", error)
     res.status(500).json({ msg: "Server Error" })

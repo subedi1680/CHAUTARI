@@ -102,4 +102,33 @@ const getUserActivity = async (req, res) => {
   }
 }
 
-module.exports = { getUserProfile, getUserActivity }
+// Add a new function to update user avatar
+const updateUserAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ msg: "No avatar image uploaded" })
+    }
+
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" })
+    }
+
+    // Convert the uploaded image to base64
+    const avatarBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`
+
+    // Update the user's avatar
+    user.avatar = avatarBase64
+    await user.save()
+
+    res.json({
+      msg: "Avatar updated successfully",
+      avatar: avatarBase64,
+    })
+  } catch (err) {
+    console.error("Error updating avatar:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+module.exports = { getUserProfile, getUserActivity, updateUserAvatar }

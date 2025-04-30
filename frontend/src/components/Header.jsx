@@ -1,56 +1,175 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useContext } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import logo from "../assets/logo-removebg.png"
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
 import * as bootstrap from "bootstrap"
 import { io } from "socket.io-client"
+import UserAvatar from "./UserAvatar"
+import UserContext from "./UserContext"
 
 const Header = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const [isAuthenticated, setIsAuthenticated] = useState(!!sessionStorage.getItem("token"))
-  const [username, setUsername] = useState("")
+  const [username, setUsername] = useState(sessionStorage.getItem("username") || "")
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const socketRef = useRef(null)
+  const notificationDropdownRef = useRef(null)
+  const userDropdownRef = useRef(null)
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
   // eslint-disable-next-line no-unused-vars
   const [activeTab, setActiveTab] = useState("")
+  const notificationFetchedRef = useRef(false)
+  const { userAvatar } = useContext(UserContext)
 
   // Check if current page is the landing page
   const isLandingPage = location.pathname === "/"
 
+  // Add a ref to track if notifications have been fetched after login
+  const notificationsInitializedRef = useRef(false)
+
+  // Function to check for stored notifications in sessionStorage
+  const checkStoredNotifications = () => {
+    const storedNotifications = sessionStorage.getItem("notifications")
+    const storedUnreadCount = sessionStorage.getItem("unreadCount")
+
+    if (storedNotifications) {
+      try {
+        const parsedNotifications = JSON.parse(storedNotifications)
+        setNotifications(parsedNotifications)
+
+        if (storedUnreadCount) {
+          setUnreadCount(Number.parseInt(storedUnreadCount, 10))
+        } else {
+          // Calculate unread count if not stored
+          const unread = parsedNotifications.filter((n) => !n.read).length
+          setUnreadCount(unread)
+        }
+
+        return true
+      } catch (e) {
+        console.error("Error parsing stored notifications:", e)
+      }
+    }
+    return false
+  }
+
   useEffect(() => {
     const checkAuth = () => {
       const token = sessionStorage.getItem("token")
+      const wasAuthenticated = isAuthenticated
       setIsAuthenticated(!!token)
       setUsername(sessionStorage.getItem("username") || "")
 
-      // If authenticated, fetch notifications and connect to socket
-      if (token) {
-        fetchNotifications()
+      // If user just logged in, fetch notifications and connect to socket
+      if (!!token && !wasAuthenticated) {
+        console.log("User just logged in, checking for notifications...")
+
+        // First check if notifications were already fetched during login
+        if (!checkStoredNotifications()) {
+          // If not in sessionStorage, fetch them
+          fetchNotifications()
+        }
+
         connectToSocket()
-      } else if (socketRef.current) {
+        notificationsInitializedRef.current = true
+      } else if (!!token && !notificationsInitializedRef.current) {
+        // If user is already logged in but notifications haven't been fetched yet
+        console.log("User already logged in, initializing notifications...")
+
+        // First check if notifications were already fetched during login
+        if (!checkStoredNotifications()) {
+          // If not in sessionStorage, fetch them
+          fetchNotifications()
+        }
+
+        connectToSocket()
+        notificationsInitializedRef.current = true
+      } else if (!token && socketRef.current) {
         // Disconnect socket if not authenticated
         socketRef.current.disconnect()
+        notificationsInitializedRef.current = false
       }
     }
 
     checkAuth()
     window.addEventListener("storage", checkAuth)
 
+    // Add event listener for login events with improved handling
+    const handleUserLoggedIn = (event) => {
+      console.log("Login event detected with data:", event.detail)
+
+      // If notifications were included in the event, use them
+      if (event.detail && event.detail.notifications) {
+        setNotifications(event.detail.notifications)
+        setUnreadCount(event.detail.unreadCount || 0)
+        notificationFetchedRef.current = true
+
+        // Show notification if there are unread items
+        if (event.detail.unreadCount > 0 && "Notification" in window && Notification.permission === "granted") {
+          new Notification("CHAUTARI", {
+            body: `You have ${event.detail.unreadCount} unread notification${event.detail.unreadCount > 1 ? "s" : ""}`,
+            icon: logo,
+          })
+        }
+      } else {
+        // Otherwise fetch them
+        fetchNotifications()
+      }
+    }
+
+    window.addEventListener("userLoggedIn", handleUserLoggedIn)
+
+    // Add click event listener to close dropdowns when clicking outside
+    const handleClickOutside = (event) => {
+      // Close notification dropdown if clicked outside
+      if (
+        notificationDropdownRef.current &&
+        !notificationDropdownRef.current.contains(event.target) &&
+        !event.target.closest("#notificationDropdown")
+      ) {
+        const dropdownElement = document.getElementById("notificationDropdown")
+        if (dropdownElement) {
+          const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownElement)
+          if (dropdownInstance) {
+            dropdownInstance.hide()
+          }
+        }
+      }
+
+      // Close user dropdown if clicked outside
+      if (
+        userDropdownRef.current &&
+        !userDropdownRef.current.contains(event.target) &&
+        !event.target.closest("#userDropdown")
+      ) {
+        const dropdownElement = document.getElementById("userDropdown")
+        if (dropdownElement) {
+          const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownElement)
+          if (dropdownInstance) {
+            dropdownInstance.hide()
+          }
+        }
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+
     return () => {
       window.removeEventListener("storage", checkAuth)
+      window.removeEventListener("userLoggedIn", handleUserLoggedIn)
+      document.removeEventListener("mousedown", handleClickOutside)
       // Disconnect socket on unmount
       if (socketRef.current) {
         socketRef.current.disconnect()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isAuthenticated])
 
   useEffect(() => {
     // Initialize Bootstrap dropdowns
@@ -63,7 +182,7 @@ const Header = () => {
           if (!bootstrap.Dropdown.getInstance(dropdownToggle)) {
             // Create a new dropdown instance with explicit configuration
             new bootstrap.Dropdown(dropdownToggle, {
-              autoClose: true,
+              autoClose: "outside", // Close when clicking outside
               boundary: "viewport",
               reference: "toggle",
             })
@@ -83,7 +202,7 @@ const Header = () => {
       } else {
         // If no instance exists, create one and toggle it
         const newDropdown = new bootstrap.Dropdown(dropdownElement, {
-          autoClose: true,
+          autoClose: "outside", // Close when clicking outside
           boundary: "viewport",
           reference: "toggle",
         })
@@ -183,6 +302,7 @@ const Header = () => {
 
     setLoading(true)
     try {
+      console.log("Fetching notifications from API...")
       const response = await fetch(`${API_BASE_URL}/api/notifications`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -192,11 +312,25 @@ const Header = () => {
       if (!response.ok) throw new Error("Failed to fetch notifications")
 
       const data = await response.json()
+      console.log("Fetched notifications:", data.length)
+
+      // Store in session storage for persistence
+      sessionStorage.setItem("notifications", JSON.stringify(data))
+
       setNotifications(data)
 
       // Count unread notifications
       const unread = data.filter((notification) => !notification.read).length
+      sessionStorage.setItem("unreadCount", unread.toString())
       setUnreadCount(unread)
+
+      // If there are unread notifications, show a browser notification
+      if (unread > 0 && "Notification" in window && Notification.permission === "granted") {
+        new Notification("CHAUTARI", {
+          body: `You have ${unread} unread notification${unread > 1 ? "s" : ""}`,
+          icon: logo,
+        })
+      }
     } catch (error) {
       console.error("Error fetching notifications:", error)
     } finally {
@@ -219,14 +353,19 @@ const Header = () => {
       if (!response.ok) throw new Error("Failed to mark notification as read")
 
       // Update local state
-      setNotifications((prev) =>
-        prev.map((notification) =>
-          notification._id === notificationId ? { ...notification, read: true } : notification,
-        ),
+      const updatedNotifications = notifications.map((notification) =>
+        notification._id === notificationId ? { ...notification, read: true } : notification,
       )
 
+      setNotifications(updatedNotifications)
+
+      // Update session storage
+      sessionStorage.setItem("notifications", JSON.stringify(updatedNotifications))
+
       // Update unread count
-      setUnreadCount((prev) => Math.max(0, prev - 1))
+      const newUnreadCount = Math.max(0, unreadCount - 1)
+      setUnreadCount(newUnreadCount)
+      sessionStorage.setItem("unreadCount", newUnreadCount.toString())
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
@@ -247,7 +386,12 @@ const Header = () => {
       if (!response.ok) throw new Error("Failed to mark all notifications as read")
 
       // Update local state
-      setNotifications((prev) => prev.map((notification) => ({ ...notification, read: true })))
+      const updatedNotifications = notifications.map((notification) => ({ ...notification, read: true }))
+      setNotifications(updatedNotifications)
+
+      // Update session storage
+      sessionStorage.setItem("notifications", JSON.stringify(updatedNotifications))
+      sessionStorage.setItem("unreadCount", "0")
 
       // Reset unread count
       setUnreadCount(0)
@@ -274,6 +418,9 @@ const Header = () => {
     sessionStorage.removeItem("token")
     sessionStorage.removeItem("userId")
     sessionStorage.removeItem("username")
+    sessionStorage.removeItem("userAvatar")
+    sessionStorage.removeItem("notifications")
+    sessionStorage.removeItem("unreadCount")
     setIsAuthenticated(false)
     navigate("/login")
   }
@@ -349,7 +496,7 @@ const Header = () => {
             {isAuthenticated ? (
               <div className="d-flex align-items-center">
                 {/* Notification Bell */}
-                <div className="dropdown me-3">
+                <div className="dropdown me-3" ref={notificationDropdownRef}>
                   <button
                     className="btn btn-primary position-relative"
                     type="button"
@@ -438,38 +585,42 @@ const Header = () => {
                 </div>
 
                 {/* User Dropdown */}
-                <button
-                  className="btn btn-primary dropdown-toggle d-flex align-items-center"
-                  type="button"
-                  id="userDropdown"
-                  onClick={() => toggleDropdown("userDropdown")}
-                  aria-expanded="false"
-                >
-                  <div
-                    className="bg-white text-primary rounded-circle me-2 d-flex align-items-center justify-content-center"
-                    style={{ width: "32px", height: "32px" }}
+                <div className="dropdown" ref={userDropdownRef}>
+                  <button
+                    className="btn btn-primary dropdown-toggle d-flex align-items-center"
+                    type="button"
+                    id="userDropdown"
+                    onClick={() => toggleDropdown("userDropdown")}
+                    aria-expanded="false"
                   >
-                    <span className="fw-bold">{username.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <span className="d-none d-md-inline">{username}</span>
-                </button>
-                <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                  <li>
-                    <Link className="dropdown-item" to="/user-settings">
-                      <i className="bi bi-gear-fill me-2"></i>
-                      User Settings
-                    </Link>
-                  </li>
-                  <li>
-                    <hr className="dropdown-divider" />
-                  </li>
-                  <li>
-                    <button className="dropdown-item text-danger" onClick={handleLogout}>
-                      <i className="bi bi-box-arrow-right me-2"></i>
-                      Logout
-                    </button>
-                  </li>
-                </ul>
+                    <UserAvatar
+                      user={{
+                        username: username,
+                        avatar: userAvatar || sessionStorage.getItem("userAvatar"),
+                      }}
+                      size="sm"
+                      className="me-2"
+                    />
+                    <span className="d-none d-md-inline">{username}</span>
+                  </button>
+                  <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                    <li>
+                      <Link className="dropdown-item" to="/user-settings">
+                        <i className="bi bi-gear-fill me-2"></i>
+                        User Settings
+                      </Link>
+                    </li>
+                    <li>
+                      <hr className="dropdown-divider" />
+                    </li>
+                    <li>
+                      <button className="dropdown-item text-danger" onClick={handleLogout}>
+                        <i className="bi bi-box-arrow-right me-2"></i>
+                        Logout
+                      </button>
+                    </li>
+                  </ul>
+                </div>
               </div>
             ) : (
               !isAuthPage && (

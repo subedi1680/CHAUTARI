@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { io } from "socket.io-client"
 import "./PostDetails.css"
+import UserAvatar from "../components/UserAvatar"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 const socket = io(API_BASE_URL, { withCredentials: true })
@@ -49,6 +50,7 @@ function PostDetails() {
 
   const loggedInUserId = sessionStorage.getItem("userId")
   const token = sessionStorage.getItem("token")
+  const userId = sessionStorage.getItem("userId")
 
   useEffect(() => {
     if (!postId || postId === "undefined") {
@@ -101,6 +103,64 @@ function PostDetails() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId])
 
+  useEffect(() => {
+    // Listen for avatar updates
+    const handleAvatarUpdate = (event) => {
+      // If the post is from the current user, update the avatar
+      if (post && post.user && post.user._id === userId) {
+        setPost((prev) => ({
+          ...prev,
+          user: {
+            ...prev.user,
+            avatar: event.detail.avatar,
+          },
+        }))
+      }
+
+      // Update avatars in comments
+      setComments((prev) =>
+        prev.map((comment) => {
+          if (comment.user && comment.user._id === userId) {
+            return {
+              ...comment,
+              user: {
+                ...comment.user,
+                avatar: event.detail.avatar,
+              },
+            }
+          }
+          return comment
+        }),
+      )
+
+      // Update avatars in replies
+      setReplies((prev) => {
+        const updatedReplies = {}
+        Object.keys(prev).forEach((commentId) => {
+          updatedReplies[commentId] = prev[commentId].map((reply) => {
+            if (reply.user && reply.user._id === userId) {
+              return {
+                ...reply,
+                user: {
+                  ...reply.user,
+                  avatar: event.detail.avatar,
+                },
+              }
+            }
+            return reply
+          })
+        })
+        return updatedReplies
+      })
+    }
+
+    window.addEventListener("avatarUpdated", handleAvatarUpdate)
+
+    return () => {
+      window.removeEventListener("avatarUpdated", handleAvatarUpdate)
+    }
+  }, [post, userId])
+
   const fetchPost = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`)
@@ -150,6 +210,7 @@ function PostDetails() {
     try {
       const formData = new FormData()
       formData.append("content", newComment)
+      formData.append("postId", postId) // Add this line to explicitly include postId
       if (commentImage) formData.append("image", commentImage)
 
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
@@ -390,12 +451,7 @@ function PostDetails() {
               <h2 className="fw-bold mb-3">{post.title}</h2>
 
               <div className="d-flex align-items-center mb-4">
-                <div
-                  className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2"
-                  style={{ width: "40px", height: "40px" }}
-                >
-                  <span className="text-white fw-bold">{post.user?.username?.charAt(0).toUpperCase() || "U"}</span>
-                </div>
+                <UserAvatar user={post.user} size="md" className="me-2" />
                 <div>
                   <p className="mb-0 fw-medium">{post.user?.username || "Unknown User"}</p>
                   <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
@@ -522,14 +578,7 @@ function PostDetails() {
                     <div className="card-body">
                       <div className="d-flex justify-content-between">
                         <div className="d-flex mb-2">
-                          <div
-                            className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2"
-                            style={{ width: "32px", height: "32px" }}
-                          >
-                            <span className="text-white fw-bold">
-                              {comment.user?.username?.charAt(0).toUpperCase() || "U"}
-                            </span>
-                          </div>
+                          <UserAvatar user={comment.user} size="sm" className="me-2" />
                           <div>
                             <h6 className="mb-0">{comment.user?.username || "Unknown User"}</h6>
                             <small className="text-muted">{formatTimeAgo(comment.createdAt)}</small>
@@ -606,14 +655,7 @@ function PostDetails() {
                             <div key={reply._id} className="bg-light rounded p-3 mb-2">
                               <div className="d-flex justify-content-between">
                                 <div className="d-flex mb-2">
-                                  <div
-                                    className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2"
-                                    style={{ width: "24px", height: "24px" }}
-                                  >
-                                    <span className="text-white fw-bold" style={{ fontSize: "0.7rem" }}>
-                                      {reply.user?.username?.charAt(0).toUpperCase() || "U"}
-                                    </span>
-                                  </div>
+                                  <UserAvatar user={reply.user} size="sm" className="me-2" />
                                   <div>
                                     <h6 className="mb-0 fs-6">{reply.user?.username || "Unknown"}</h6>
                                     <small className="text-muted">{formatTimeAgo(reply.createdAt)}</small>

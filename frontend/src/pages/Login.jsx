@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 "use client"
 
 import { useState, useContext } from "react"
@@ -11,8 +12,8 @@ function Login() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  // eslint-disable-next-line no-unused-vars
-  const { categorySetupCompleted } = useContext(UserContext)
+  const { categorySetupCompleted, updateAvatar } = useContext(UserContext)
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -20,7 +21,7 @@ function Login() {
     setLoading(true)
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -35,6 +36,54 @@ function Login() {
       sessionStorage.setItem("token", data.token)
       sessionStorage.setItem("userId", data.user.id)
       sessionStorage.setItem("username", username)
+
+      // Store avatar if available
+      if (data.user.avatar) {
+        sessionStorage.setItem("userAvatar", data.user.avatar)
+
+        // Update avatar in context
+        if (updateAvatar) {
+          updateAvatar(data.user.avatar)
+        }
+      }
+
+      // Request notification permission
+      if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+        await Notification.requestPermission()
+      }
+
+      // Explicitly fetch notifications right after login
+      try {
+        const notifResponse = await fetch(`${API_BASE_URL}/api/notifications`, {
+          headers: {
+            Authorization: `Bearer ${data.token}`,
+          },
+        })
+
+        if (notifResponse.ok) {
+          const notifications = await notifResponse.json()
+          const unreadCount = notifications.filter((n) => !n.read).length
+
+          // Store notification data in sessionStorage for immediate access
+          sessionStorage.setItem("notifications", JSON.stringify(notifications))
+          sessionStorage.setItem("unreadCount", unreadCount.toString())
+
+          // Dispatch event with the actual notification data
+          window.dispatchEvent(
+            new CustomEvent("userLoggedIn", {
+              detail: {
+                user: data.user,
+                notifications: notifications,
+                unreadCount: unreadCount,
+              },
+            }),
+          )
+
+          console.log("Dispatched userLoggedIn event with notifications:", notifications.length)
+        }
+      } catch (notifError) {
+        console.error("Error fetching notifications during login:", notifError)
+      }
 
       // After login, check if category setup is completed
       if (data.user.categorySetupCompleted === false) {
@@ -129,6 +178,11 @@ function Login() {
                   Don&apos;t have an account?{" "}
                   <Link to="/register" className="text-primary fw-bold">
                     Sign Up
+                  </Link>
+                </p>
+                <p className="mt-2 mb-0">
+                  <Link to="/forgot-password" className="text-primary">
+                    Forgot Password?
                   </Link>
                 </p>
               </div>

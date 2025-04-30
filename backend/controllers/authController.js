@@ -276,4 +276,179 @@ const verifyPassword = async (req, res) => {
   }
 }
 
-module.exports = { registerUser, loginUser, sendOtp, verifyOtp, verifyPassword }
+// @desc    Send OTP for password reset
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+  const { email } = req.body
+
+  if (!email) {
+    return res.status(400).json({ msg: "Email is required" })
+  }
+
+  try {
+    // Check if user exists with this email
+    const user = await User.findOne({ email })
+
+    if (!user) {
+      return res.status(404).json({ msg: "No account found with this email" })
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+
+    // Store OTP with expiration (5 minutes)
+    otpStore.set(email, {
+      otp,
+      expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+      type: "reset", // Mark this as a reset password OTP
+    })
+
+    // Create transporter for this request
+    const transporter = createTransporter()
+    if (!transporter) {
+      return res.status(500).json({ msg: "Email service configuration error. Please contact support." })
+    }
+
+    // Send email with OTP
+    const mailOptions = {
+      from: `"CHAUTARI" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Password Reset Request for CHAUTARI",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Password Reset Request</h2>
+          <p>We received a request to reset your CHAUTARI account password.</p>
+          <p>Your One-Time Password (OTP) for password reset is:</p>
+          <h1 style="font-size: 32px; letter-spacing: 2px; color: #333; background: #f5f5f5; padding: 10px; text-align: center; border-radius: 5px;">${otp}</h1>
+          <p>This OTP is valid for 5 minutes.</p>
+          <p>If you didn't request this password reset, please ignore this email or contact support.</p>
+          <p>Thank you,<br>CHAUTARI Team</p>
+        </div>
+      `,
+    }
+
+    try {
+      await transporter.sendMail(mailOptions)
+      res.status(200).json({ msg: "OTP sent successfully to your email" })
+    } catch (emailError) {
+      console.error("Failed to send email:", emailError)
+      res.status(500).json({ msg: "Failed to send OTP email. Please try again later." })
+    }
+  } catch (err) {
+    console.error("Forgot password error:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+// @desc    Verify OTP for password reset
+// @route   POST /api/auth/verify-reset-otp
+// @access  Public
+const verifyResetOtp = async (req, res) => {
+  const { email, otp } = req.body
+
+  if (!email || !otp) {
+    return res.status(400).json({ msg: "Email and OTP are required" })
+  }
+
+  try {
+    // Check if OTP exists and is valid
+    const otpData = otpStore.get(email)
+
+    if (!otpData) {
+      return res.status(400).json({ msg: "OTP expired or not found. Please request a new one." })
+    }
+
+    if (Date.now() > otpData.expiresAt) {
+      otpStore.delete(email)
+      return res.status(400).json({ msg: "OTP has expired. Please request a new one." })
+    }
+
+    if (otpData.otp !== otp) {
+      return res.status(400).json({ msg: "Invalid OTP. Please try again." })
+    }
+
+    // OTP is valid, but don't delete it yet as we'll need it for the reset password step
+    // Just update the expiration time to give the user more time to reset their password
+    otpStore.set(email, {
+      ...otpData,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 more minutes
+      verified: true,
+    })
+
+    res.status(200).json({ msg: "OTP verified successfully" })
+  } catch (err) {
+    console.error("OTP verification error:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+// @desc    Reset password
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ msg: "Email, OTP, and new password are required" })
+  }
+
+  try {
+    // Check if OTP exists, is valid, and has been verified
+    const otpData = otpStore.get(email)
+
+    if (!otpData || !otpData.verified) {
+      return res.status(400).json({ msg: "Invalid or unverified OTP. Please restart the password reset process." })
+    }
+
+    if (Date.now() > otpData.expiresAt) {
+      otpStore.delete(email)
+      return res.status(400).json({ msg: "OTP has expired. Please restart the password reset process." })
+    }
+
+    if (otpData.otp !== otp) {
+      return res.status(400).json({ msg: "Invalid OTP. Please try again." })
+    }
+
+    // Validate password strength
+    if (!validatePassword(newPassword)) {
+      return res.status(400).json({
+        msg: "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&).",
+      })
+    }
+
+    // Find the user and update their password
+    const user = await User.findOne({ email })
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" })
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(newPassword, salt)
+
+    // Update the user's password
+    user.password = hashedPassword
+    await user.save()
+
+    // Delete the OTP from store
+    otpStore.delete(email)
+
+    res.status(200).json({ msg: "Password reset successful. You can now login with your new password." })
+  } catch (err) {
+    console.error("Password reset error:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+module.exports = {
+  registerUser,
+  loginUser,
+  sendOtp,
+  verifyOtp,
+  verifyPassword,
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
+}

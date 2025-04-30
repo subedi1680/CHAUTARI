@@ -1,47 +1,272 @@
+/* Base styles */
+:root {
+  --primary-color: #0d6efd;
+  --primary-hover: #0b5ed7;
+  --secondary-color: #6c757d;
+  --light-bg: #f8f9fa;
+  --dark-text: #212529;
+  --border-radius: 0.5rem;
+  --transition-speed: 0.3s;
+  --box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --box-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
+    "Helvetica Neue", sans-serif;
+  background-color: var(--light-bg);
+  color: var(--dark-text);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Smooth scrolling for the entire site */
+html {
+  scroll-behavior: smooth;
+}
+
 /* Fix for modal backdrop issues */
 .modal {
-    z-index: 1050 !important;
+  z-index: 1050 !important;
+}
+
+.modal-backdrop {
+  z-index: 1040 !important;
+}
+
+/* Ensure modal content is above backdrop */
+.modal-content {
+  position: relative;
+  z-index: 1051 !important;
+  border-radius: var(--border-radius);
+  border: none;
+  box-shadow: var(--box-shadow);
+}
+
+/* Fix for multiple backdrops */
+body.modal-open {
+  overflow: hidden;
+  padding-right: 0 !important;
+}
+
+/* Add styles to ensure dropdowns are visible and properly positioned */
+.dropdown-menu {
+  z-index: 1060 !important;
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: visibility 0s, opacity var(--transition-speed), transform var(--transition-speed);
+  border-radius: var(--border-radius);
+  border: none;
+  box-shadow: var(--box-shadow-sm);
+  padding: 0.5rem 0;
+}
+
+.dropdown-menu.show {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Ensure dropdown toggles have proper cursor */
+.dropdown-toggle {
+  cursor: pointer;
+}
+
+/* Fix for navbar dropdowns */
+.navbar .dropdown-menu {
+  position: absolute !important;
+}
+
+/* Dropdown item styling */
+.dropdown-item {
+  padding: 0.5rem 1.25rem;
+  transition: background-color var(--transition-speed);
+}
+
+.dropdown-item:hover {
+  background-color: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.dropdown-item:active {
+  background-color: var(--primary-color);
+}
+
+/* Button styling */
+.btn {
+  border-radius: var(--border-radius);
+  transition: all var(--transition-speed);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+/* Card styling */
+.card {
+  border-radius: var(--border-radius);
+  border: none;
+  box-shadow: var(--box-shadow-sm);
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.card:hover {
+  box-shadow: var(--box-shadow);
+}
+
+/* Form control styling */
+.form-control,
+.form-select {
+  border-radius: var(--border-radius);
+  border: 1px solid #ced4da;
+  transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Add these styles to improve avatar display */
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.avatar:hover {
+  transform: scale(1.05);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 0.8rem;
+}
+
+.avatar-lg {
+  width: 64px;
+  height: 64px;
+  font-size: 1.5rem;
+}
+
+.avatar-xl {
+  width: 100px;
+  height: 100px;
+  font-size: 2rem;
+}
+
+/* Image hover effects */
+.img-hover {
+  transition: transform var(--transition-speed);
+}
+
+.img-hover:hover {
+  transform: scale(1.03);
+}
+
+/* Responsive typography */
+@media (max-width: 768px) {
+  h1 {
+    font-size: calc(1.375rem + 1.5vw);
   }
-  
-  .modal-backdrop {
-    z-index: 1040 !important;
+  h2 {
+    font-size: calc(1.325rem + 0.9vw);
   }
-  
-  /* Ensure modal content is above backdrop */
-  .modal-content {
-    position: relative;
-    z-index: 1051 !important;
+  h3 {
+    font-size: calc(1.3rem + 0.6vw);
   }
-  
-  /* Fix for multiple backdrops */
-  body.modal-open {
-    overflow: hidden;
-    padding-right: 0 !important;
+}
+
+/* Responsive spacing */
+@media (max-width: 576px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
-  
-  /* Add styles to ensure dropdowns are visible and properly positioned */
-  .dropdown-menu {
-    z-index: 1060 !important;
-    display: block;
-    visibility: hidden;
+
+  .card-body {
+    padding: 1rem;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
     opacity: 0;
-    transform: translateY(-10px);
-    transition: visibility 0s, opacity 0.2s, transform 0.2s;
+    transform: translateY(10px);
   }
-  
-  .dropdown-menu.show {
-    visibility: visible;
+  to {
     opacity: 1;
     transform: translateY(0);
   }
-  
-  /* Ensure dropdown toggles have proper cursor */
-  .dropdown-toggle {
-    cursor: pointer;
-  }
-  
-  /* Fix for navbar dropdowns */
-  .navbar .dropdown-menu {
-    position: absolute !important;
-  }
-  
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Accessibility improvements */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Avatar styles */
+.avatar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.avatar img {
+  transition: transform 0.3s ease;
+}
+
+.avatar:hover img {
+  transform: scale(1.05);
+}
+
+.avatar-fallback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}

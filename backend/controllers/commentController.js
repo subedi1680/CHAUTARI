@@ -1,133 +1,210 @@
 const Comment = require("../models/Comment")
 const Post = require("../models/Post")
+const mongoose = require("mongoose")
+
+// Enhance the createComment function to ensure notifications are created properly
+const createComment = async (req, res) => {
+  try {
+    // Get post ID from either params or body
+    const postId = req.params.postId || req.body.postId
+
+    if (!postId) {
+      return res.status(400).json({ msg: "Post ID is required" })
+    }
+
+    // Check if post exists
+    const post = await Post.findById(postId)
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" })
+    }
+
+    // Get comment content from body
+    const { content } = req.body
+
+    // Check if there's either content or an image
+    if (!content && !req.file) {
+      return res.status(400).json({ msg: "Comment must have either text or an image" })
+    }
+
+    // Create new comment
+    const newComment = new Comment({
+      content: content || "",
+      post: postId,
+      user: req.user.id,
+      image: req.file ? req.file.buffer.toString("base64") : null,
+    })
+
+    // Save comment
+    await newComment.save()
+
+    // Update post with new comment
+    post.comments.push(newComment._id)
+    await post.save()
+
+    // Populate user data for the response
+    const populatedComment = await Comment.findById(newComment._id).populate("user", ["username", "avatar"])
+
+    // Create notification for post owner if it's not their own post
+    if (post.user.toString() !== req.user.id) {
+      try {
+        // Get notification controller
+        const notificationController = require("./notificationController")
+
+        // Get username of commenter
+        const User = require("../models/User")
+        const commenter = await User.findById(req.user.id).select("username")
+
+        // Create notification data
+        const notificationData = {
+          recipient: post.user,
+          sender: req.user.id,
+          type: "comment",
+          content: `${commenter.username} commented on your post "${post.title}"`,
+          relatedPost: post._id,
+          relatedComment: newComment._id,
+        }
+
+        console.log("Creating comment notification:", notificationData)
+
+        // Create notification
+        await notificationController.createNotification(notificationData)
+        console.log("Comment notification created successfully")
+      } catch (notifError) {
+        console.error("Error creating comment notification:", notifError)
+        // Continue execution even if notification creation fails
+      }
+    }
+
+    // Emit socket event for new comment
+    if (req.io) {
+      req.io.emit("newComment", {
+        postId,
+        comment: populatedComment,
+      })
+    }
+
+    res.status(201).json(populatedComment)
+  } catch (err) {
+    console.error("Error creating comment:", err)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
 
 // Get all comments for a post
 exports.getCommentsByPost = async (req, res) => {
   try {
-    const postId = req.params.postId
-    const comments = await Comment.find({ post: postId }).populate("user", "username").sort({ createdAt: -1 })
+    const { postId } = req.params
 
-    res.status(200).json(comments)
-  } catch (error) {
-    console.error("Error fetching comments:", error)
-    res.status(500).json({ message: "Failed to fetch comments" })
+    // Validate postId
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      return res.status(400).json({ msg: "Invalid post ID" })
+    }
+
+    const comments = await Comment.find({ post: postId })
+      .populate("user", ["username", "avatar"]) // Include avatar in population
+      .sort({ createdAt: -1 })
+
+    res.json(comments)
+  } catch (err) {
+    console.error("Error fetching comments:", err)
+    res.status(500).json({ msg: "Server Error" })
   }
 }
 
-// Update the createComment function to create a notification when someone comments on a post
-exports.createComment = async (req, res) => {
-  try {
-    const { content } = req.body
-    const postId = req.params.postId
-    const userId = req.user.id
-
-    const postExists = await Post.findById(postId)
-    if (!postExists) {
-      return res.status(404).json({ message: "Post not found" })
-    }
-
-    if (!content.trim() && !req.file) {
-      return res.status(400).json({ message: "Cannot post empty comment" })
-    }
-
-    let base64Image = ""
-    if (req.file) {
-      const mimeType = req.file.mimetype
-      base64Image = `data:${mimeType};base64,${req.file.buffer.toString("base64")}`
-    }
-
-    const newComment = new Comment({
-      content,
-      post: postId,
-      user: userId,
-      image: base64Image,
-    })
-
-    const savedComment = await newComment.save()
-
-    // Add the comment to the post's comments array and update the post's comment count
-    await Post.findByIdAndUpdate(postId, {
-      $push: { comments: savedComment._id },
-      $inc: { commentCount: 1 },
-    })
-
-    const populatedComment = await Comment.findById(savedComment._id).populate("user", "username")
-
-    // Check if the user is commenting on their own post
-    const isOwnPost = postExists.user.toString() === userId
-
-    // Create a notification for the post owner if it's not their own post
-    if (!isOwnPost) {
-      // Import the notification controller
-      const notificationController = require("./notificationController")
-
-      // Get the username of the commenter
-      const User = require("../models/User")
-      const commenter = await User.findById(userId).select("username")
-
-      // Create notification data
-      const notificationData = {
-        recipient: postExists.user,
-        sender: userId,
-        type: "comment",
-        content: `${commenter.username} commented on your post "${postExists.title}"`,
-        relatedPost: postId,
-        relatedComment: savedComment._id,
-      }
-
-      // Create the notification
-      await notificationController.createNotification(notificationData)
-    }
-
-    req.io.emit("newComment", populatedComment)
-
-    res.status(201).json(populatedComment)
-  } catch (error) {
-    console.error("Error creating comment:", error)
-    res.status(500).json({ message: "Failed to create comment" })
-  }
-}
-
-// Update the deleteComment function to also delete related notifications
+// Delete a comment
 exports.deleteComment = async (req, res) => {
   try {
-    const commentId = req.params.commentId
-    const userId = req.user.id
+    const { id } = req.params
 
-    const comment = await Comment.findById(commentId)
+    // Validate comment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ msg: "Invalid comment ID" })
+    }
+
+    const comment = await Comment.findById(id)
+
     if (!comment) {
-      return res.status(404).json({ message: "Comment not found" })
+      return res.status(404).json({ msg: "Comment not found" })
     }
 
-    if (comment.user.toString() !== userId) {
-      return res.status(403).json({ message: "Unauthorized to delete this comment" })
+    // Check if user is authorized to delete
+    if (comment.user.toString() !== req.user.id) {
+      return res.status(401).json({ msg: "User not authorized" })
     }
-
-    const postId = comment.post
 
     // Delete all replies to this comment
     const Reply = require("../models/Reply")
-    await Reply.deleteMany({ comment: commentId })
+    await Reply.deleteMany({ comment: id })
 
-    // Delete all notifications related to this comment
+    // Delete related notifications
     const notificationController = require("./notificationController")
-    await notificationController.deleteRelatedNotifications({ commentId })
+    await notificationController.deleteRelatedNotifications({ commentId: id })
 
-    // Delete the comment
     await comment.deleteOne()
 
-    // Remove the comment from the post's comment array and update the comment count
-    await Post.findByIdAndUpdate(postId, {
-      $pull: { comments: commentId },
-      $inc: { commentCount: -1 },
-    })
+    // Emit socket event for real-time updates
+    if (req.app.get("io")) {
+      req.app.get("io").emit("deleteComment", {
+        commentId: id,
+        postId: comment.post,
+      })
+    }
 
-    // Emit event to inform clients
-    req.io.emit("deleteComment", { commentId, postId })
-
-    res.status(200).json({ message: "Comment deleted successfully" })
-  } catch (error) {
-    console.error("Error deleting comment:", error)
-    res.status(500).json({ message: "Failed to delete comment" })
+    res.json({ msg: "Comment deleted" })
+  } catch (err) {
+    console.error("Error deleting comment:", err)
+    res.status(500).json({ msg: "Server Error" })
   }
 }
+
+// Update a comment
+exports.updateComment = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { content } = req.body
+
+    // Validate comment ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ msg: "Invalid comment ID" })
+    }
+
+    if (!content) {
+      return res.status(400).json({ msg: "Content is required" })
+    }
+
+    const comment = await Comment.findById(id)
+
+    if (!comment) {
+      return res.status(404).json({ msg: "Comment not found" })
+    }
+
+    // Check if user is authorized to update
+    if (comment.user.toString() !== req.user.id) {
+      return res.status(401).json({ msg: "User not authorized" })
+    }
+
+    comment.content = content
+    comment.edited = true
+    comment.editedAt = Date.now()
+
+    await comment.save()
+
+    // Populate user data including avatar
+    const updatedComment = await Comment.findById(id).populate("user", ["username", "avatar"])
+
+    // Emit socket event for real-time updates
+    if (req.app.get("io")) {
+      req.app.get("io").emit("updateComment", {
+        comment: updatedComment,
+        postId: comment.post,
+      })
+    }
+
+    res.json(updatedComment)
+  } catch (err) {
+    console.error("Error updating comment:", err)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+exports.createComment = createComment

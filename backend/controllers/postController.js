@@ -30,11 +30,11 @@ const createPost = async (req, res) => {
   }
 }
 
-// Get all posts
+// Modify the getPosts function to populate user avatar
 const getPosts = async (req, res) => {
   try {
     const posts = await Post.find()
-      .populate("user", ["username"])
+      .populate("user", ["username", "avatar"]) // Add avatar to the populated fields
       .populate({
         path: "comments",
         select: "_id",
@@ -48,7 +48,7 @@ const getPosts = async (req, res) => {
   }
 }
 
-// Get a single post by ID
+// Modify the getPostById function to populate user avatar
 const getPostById = async (req, res) => {
   const { id } = req.params
 
@@ -57,10 +57,12 @@ const getPostById = async (req, res) => {
   }
 
   try {
-    const post = await Post.findById(id).populate("user", ["username"]).populate({
-      path: "comments",
-      select: "_id",
-    })
+    const post = await Post.findById(id)
+      .populate("user", ["username", "avatar"]) // Add avatar to the populated fields
+      .populate({
+        path: "comments",
+        select: "_id",
+      })
 
     if (!post) {
       return res.status(404).json({ msg: "Post not found" })
@@ -204,8 +206,15 @@ const likePost = async (req, res) => {
           relatedPost: post._id,
         }
 
-        // Create the notification
-        await notificationController.createNotification(notificationData)
+        try {
+          // Create the notification with explicit error handling
+          console.log("Creating like notification:", notificationData)
+          await notificationController.createNotification(notificationData)
+          console.log("Like notification created successfully")
+        } catch (notifError) {
+          console.error("Error creating like notification:", notifError)
+          // Continue execution even if notification creation fails
+        }
       }
     }
 

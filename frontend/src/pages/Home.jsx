@@ -1,9 +1,10 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client"
 
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap-icons/font/bootstrap-icons.css"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useContext } from "react"
 import { useNavigate } from "react-router-dom"
 import { io } from "socket.io-client"
 import { categoryStructure } from "../utils/categoryData"
@@ -11,6 +12,8 @@ import "./Home.css"
 
 // Add these imports at the top of the file, after the existing imports
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
+import UserAvatar from "../components/UserAvatar"
+import UserContext from "../components/UserContext"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -51,7 +54,7 @@ function HomePage() {
   const [userActivities, setUserActivities] = useState([])
   const [activityLoading, setActivityLoading] = useState(false)
   const navigate = useNavigate()
-  // Add these new state variables in the existing state declarations
+  const { userAvatar } = useContext(UserContext)
 
   const token = sessionStorage.getItem("token")
   const userId = sessionStorage.getItem("userId")
@@ -178,6 +181,61 @@ function HomePage() {
       socket.disconnect()
     }
   }, [token, userId])
+
+  // Add useEffect to listen for avatar updates
+  useEffect(() => {
+    // Listen for avatar updates
+    const handleAvatarUpdate = (event) => {
+      // Update avatar in posts
+      setPosts((prev) =>
+        prev.map((post) => {
+          if (post.user && post.user._id === userId) {
+            return {
+              ...post,
+              user: {
+                ...post.user,
+                avatar: event.detail.avatar,
+              },
+            }
+          }
+          return post
+        }),
+      )
+
+      // Update avatar in myPosts
+      setMyPosts((prev) =>
+        prev.map((post) => {
+          if (post.user && post.user._id === userId) {
+            return {
+              ...post,
+              user: {
+                ...post.user,
+                avatar: event.detail.avatar,
+              },
+            }
+          }
+          return post
+        }),
+      )
+
+      // Update userProfile avatar
+      setUserProfile((prev) => {
+        if (prev) {
+          return {
+            ...prev,
+            avatar: event.detail.avatar,
+          }
+        }
+        return prev
+      })
+    }
+
+    window.addEventListener("avatarUpdated", handleAvatarUpdate)
+
+    return () => {
+      window.removeEventListener("avatarUpdated", handleAvatarUpdate)
+    }
+  }, [userId])
 
   // Fetch user activities when profile tab is active
   useEffect(() => {
@@ -409,12 +467,19 @@ function HomePage() {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-2">
             <span className="badge bg-primary rounded-pill px-3 py-2">{post.category || "Uncategorized"}</span>
-            <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
           </div>
           <h5 className="card-title mb-1">{post.title}</h5>
-          <p className="text-muted small mb-3">
-            by <span className="fw-bold">{post.user?.username || "Unknown User"}</span>
-          </p>
+
+          {/* Update the post card rendering to use UserAvatar component */}
+          {/* Replace the existing avatar div with UserAvatar component */}
+          <div className="d-flex align-items-center mb-4">
+            <UserAvatar user={post.user} size="sm" className="me-2" />
+            <div>
+              <p className="mb-0 fw-medium">{post.user?.username || "Unknown User"}</p>
+              <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
+              {post.edited && <small className="text-muted ms-2">(edited)</small>}
+            </div>
+          </div>
 
           <div className="d-flex justify-content-between align-items-center mt-3">
             <div className="d-flex gap-3">
@@ -450,12 +515,14 @@ function HomePage() {
         <div className="col-lg-3 col-md-4 bg-light border-end sidebar">
           <div className="p-4">
             <div className="d-flex align-items-center mb-4">
-              <div
-                className="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3"
-                style={{ width: "50px", height: "50px" }}
-              >
-                <span className="text-white fw-bold fs-4">{userProfile?.username?.charAt(0).toUpperCase() || "U"}</span>
-              </div>
+              <UserAvatar
+                user={{
+                  username: userProfile?.username || "Guest",
+                  avatar: userAvatar || userProfile?.avatar,
+                }}
+                size="md"
+                className="me-3"
+              />
               <div>
                 <h5 className="mb-0">{userProfile?.username || "Guest"}</h5>
                 <p className="text-muted mb-0 small">{userProfile?.email || ""}</p>
@@ -548,14 +615,14 @@ function HomePage() {
                 <div className="card border-0 shadow-sm rounded-3 mb-4">
                   <div className="card-body p-4">
                     <div className="d-flex align-items-center mb-4">
-                      <div
-                        className="bg-primary rounded-circle d-flex align-items-center justify-content-center"
-                        style={{ width: "80px", height: "80px" }}
-                      >
-                        <span className="text-white fw-bold fs-1">
-                          {userProfile?.username?.charAt(0).toUpperCase() || "U"}
-                        </span>
-                      </div>
+                      <UserAvatar
+                        user={{
+                          username: userProfile?.username || "Guest",
+                          avatar: userAvatar || userProfile?.avatar,
+                        }}
+                        size="lg"
+                        className="me-3"
+                      />
                       <div className="ms-3">
                         <h4 className="mb-1">{userProfile?.username || "Loading..."}</h4>
                         <p className="text-muted mb-0">{userProfile?.email || ""}</p>

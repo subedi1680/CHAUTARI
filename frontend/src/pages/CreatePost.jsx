@@ -203,7 +203,7 @@ function CreateNewPost() {
                     <span className="input-group-text bg-light">
                       <i className="bi bi-tag"></i>
                     </span>
-                    <div className="form-control p-0" style={{ overflow: "hidden" }}>
+                    <div className="form-control p-0" style={{ overflow: "visible" }}>
                       <Select
                         options={categoryOptions}
                         value={categoryOptions.find((option) => option.value === formData.category)}
@@ -223,6 +223,10 @@ function CreateNewPost() {
                             padding: "0 8px",
                             display: "flex",
                             alignItems: "center",
+                          }),
+                          menu: (provided) => ({
+                            ...provided,
+                            zIndex: 9999,
                           }),
                         }}
                       />

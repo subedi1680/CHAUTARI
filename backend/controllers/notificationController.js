@@ -1,14 +1,13 @@
 const Notification = require("../models/Notification")
+const User = require("../models/User")
 
 // Get all notifications for a user
 exports.getUserNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user.id })
-      .populate("sender", "username")
-      .populate("relatedPost", "title")
-      .sort({ createdAt: -1 })
-      .limit(50)
+    console.log("Fetching notifications for user:", req.user.id)
+    const notifications = await Notification.find({ recipient: req.user.id }).sort({ createdAt: -1 }).limit(50)
 
+    console.log(`Found ${notifications.length} notifications`)
     res.json(notifications)
   } catch (error) {
     console.error("Error fetching notifications:", error)
@@ -80,7 +79,7 @@ exports.updateNotificationPreferences = async (req, res) => {
   try {
     const { email, comments, likes, replies } = req.body
 
-    const user = await require("../models/User").findById(req.user.id)
+    const user = await User.findById(req.user.id)
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" })
@@ -88,10 +87,10 @@ exports.updateNotificationPreferences = async (req, res) => {
 
     // Update notification preferences
     user.notificationPreferences = {
-      email: email !== undefined ? email : user.notificationPreferences.email,
-      comments: comments !== undefined ? comments : user.notificationPreferences.comments,
-      likes: likes !== undefined ? likes : user.notificationPreferences.likes,
-      replies: replies !== undefined ? replies : user.notificationPreferences.replies,
+      email: email !== undefined ? email : user.notificationPreferences?.email || true,
+      comments: comments !== undefined ? comments : user.notificationPreferences?.comments || true,
+      likes: likes !== undefined ? likes : user.notificationPreferences?.likes || true,
+      replies: replies !== undefined ? replies : user.notificationPreferences?.replies || true,
     }
 
     await user.save()
@@ -106,52 +105,49 @@ exports.updateNotificationPreferences = async (req, res) => {
   }
 }
 
-// Update the createNotification function to be more efficient
-exports.createNotification = async (data) => {
+// Create a notification
+exports.createNotification = async (notificationData) => {
   try {
-    // Check if user has notification preferences disabled for this type
-    const User = require("../models/User")
-    const recipient = await User.findById(data.recipient).select("notificationPreferences")
+    console.log("Creating notification with data:", notificationData)
 
-    if (!recipient) {
-      console.error("Recipient user not found")
-      return null
+    // Validate required fields
+    if (!notificationData.recipient || !notificationData.type || !notificationData.content) {
+      console.error("Missing required notification fields")
+      throw new Error("Missing required notification fields")
     }
 
-    // Check notification preferences - quick check without unnecessary processing
-    if (
-      (data.type === "comment" && recipient.notificationPreferences?.comments === false) ||
-      (data.type === "like" && recipient.notificationPreferences?.likes === false) ||
-      (data.type === "reply" && recipient.notificationPreferences?.replies === false)
-    ) {
-      return null
-    }
+    // Create notification
+    const notification = new Notification({
+      recipient: notificationData.recipient,
+      sender: notificationData.sender,
+      type: notificationData.type,
+      content: notificationData.content,
+      relatedPost: notificationData.relatedPost,
+      relatedComment: notificationData.relatedComment,
+      relatedReply: notificationData.relatedReply,
+    })
 
-    // Create notification object
-    const notification = new Notification(data)
-
-    // Emit socket event immediately before saving to database
-    // This makes notifications appear faster in the UI
-    if (global.io) {
-      global.io.to(data.recipient.toString()).emit("newNotification", {
-        ...data,
-        _id: notification._id,
-        createdAt: new Date(),
-        read: false,
-      })
-    }
-
-    // Save to database asynchronously
+    // Save notification
     await notification.save()
+    console.log("Notification saved to database:", notification._id)
+
+    // Emit socket event if io is available
+    const io = global.io
+    if (io) {
+      console.log("Emitting socket event for notification to user:", notificationData.recipient)
+      io.to(notificationData.recipient.toString()).emit("newNotification", notification)
+    } else {
+      console.log("Socket.io not available, notification will be shown on next login")
+    }
 
     return notification
   } catch (error) {
     console.error("Error creating notification:", error)
-    return null
+    throw error
   }
 }
 
-// Add a new function to delete notifications related to specific content
+// Delete notifications related to specific content
 exports.deleteRelatedNotifications = async (options) => {
   try {
     const query = {}
@@ -173,4 +169,14 @@ exports.deleteRelatedNotifications = async (options) => {
   } catch (error) {
     console.error("Error deleting related notifications:", error)
   }
+}
+
+module.exports = {
+  getUserNotifications: exports.getUserNotifications,
+  markAsRead: exports.markAsRead,
+  markAllAsRead: exports.markAllAsRead,
+  deleteNotification: exports.deleteNotification,
+  updateNotificationPreferences: exports.updateNotificationPreferences,
+  createNotification: exports.createNotification,
+  deleteRelatedNotifications: exports.deleteRelatedNotifications,
 }
