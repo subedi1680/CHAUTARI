@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose")
 
 const commentSchema = new mongoose.Schema(
   {
@@ -9,20 +9,20 @@ const commentSchema = new mongoose.Schema(
     },
     post: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Post',
+      ref: "Post",
       required: true,
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     image: {
       type: String,
-      default: '',
+      default: "",
     },
   },
-  { timestamps: true }
-);
+  { timestamps: true },
+)
 
-module.exports = mongoose.model('Comment', commentSchema);
+module.exports = mongoose.models.Comment || mongoose.model("Comment", commentSchema)

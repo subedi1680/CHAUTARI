@@ -1,27 +1,53 @@
+.card {
+  border-radius: 0.75rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border: none !important;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+  background-color: #fff !important;
+  color: #212529 !important;
+}
+
+.card:hover {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+}
+
 .zoomable {
   transition: transform 0.3s ease;
   cursor: zoom-in;
 }
 
 .zoomable:hover {
-  transform: scale(1.05);
-  cursor: zoom-out;
+  transform: scale(1.02);
 }
 
 .post-content {
+  font-size: 1.1rem;
   line-height: 1.7;
+  color: #212529;
 }
 
 .modal {
   z-index: 1050;
 }
 
+.modal-content {
+  border: none;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  background-color: #fff;
+  color: #212529;
+}
+
 .preview-img {
-  transition: opacity 0.2s;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  border-radius: 0.5rem;
 }
 
 .preview-img:hover {
   opacity: 0.9;
+  transform: scale(1.01);
 }
 
 /* Comment and reply animations */
@@ -38,4 +64,250 @@
 
 .card {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Improved button styles */
+.btn {
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Improved comment section */
+.comment-section {
+  border-radius: 0.75rem;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  color: #212529;
+}
+
+.reply-section {
+  margin-left: 2.5rem;
+  border-left: 2px solid rgba(0, 0, 0, 0.1);
+  padding-left: 1rem;
+}
+
+/* Report button styling */
+.report-btn {
+  color: #6c757d;
+  transition: color 0.2s ease;
+}
+
+.report-btn:hover {
+  color: #dc3545;
+}
+
+/* Improved form controls */
+.form-control {
+  border-radius: 0.5rem;
+  border: 1px solid #ced4da;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background-color: #fff;
+  color: #212529;
+}
+
+.form-control:focus {
+  border-color: #b47cff;
+  box-shadow: 0 0 0 0.25rem rgba(124, 77, 77, 0.25);
+  background-color: #fff;
+  color: #212529;
+}
+
+.form-control::placeholder {
+  color: #6c757d;
+  opacity: 0.7;
+}
+
+/* Improved avatar display */
+.avatar-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Improved badge styling */
+.badge {
+  font-weight: 500;
+  padding: 0.5em 0.75em;
+  letter-spacing: 0.5px;
+}
+
+/* Fix for text in cards */
+.card-title,
+.card-text,
+.card-header,
+.card-footer {
+  color: #212529 !important;
+}
+
+/* Fix for comment text */
+.comment-text,
+.reply-text {
+  color: #212529 !important;
+}
+
+/* Fix for metadata text */
+.text-muted {
+  color: #6c757d !important;
+}
+
+/* Fix for username and timestamps */
+.username,
+.timestamp {
+  color: #212529;
+}
+
+/* Fix for modal text */
+.modal-title,
+.modal-body {
+  color: #212529;
+}
+
+/* Post details page specific styles */
+.comment {
+  margin-bottom: 1.5rem;
+  border-radius: 1rem;
+  background-color: #ffffff;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.comment:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+/* Reply styling */
+.reply {
+  margin-left: 3rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background-color: #f8f9fa;
+  margin-bottom: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+.reply:hover {
+  transform: translateY(-2px);
+}
+
+/* Button styling */
+.btn-primary {
+  background-color: #7c4dff;
+  border-color: #7c4dff;
+}
+
+.btn-primary:hover {
+  background-color: #6a3aff;
+  border-color: #6a3aff;
+}
+
+.btn-outline-primary {
+  color: #7c4dff;
+  border-color: #7c4dff;
+}
+
+.btn-outline-primary:hover {
+  background-color: #7c4dff;
+  border-color: #7c4dff;
+  color: white;
+}
+
+.btn-outline-danger {
+  color: #f44336;
+  border-color: #f44336;
+}
+
+.btn-outline-danger:hover {
+  background-color: #f44336;
+  border-color: #f44336;
+  color: white;
+}
+
+.btn-outline-secondary {
+  color: #6c757d;
+  border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: white;
+}
+
+/* Badge styling */
+.bg-primary {
+  background-color: #7c4dff !important;
+}
+
+.bg-secondary {
+  background-color: #ff6e40 !important;
+}
+
+.bg-success {
+  background-color: #66bb6a !important;
+}
+
+.bg-danger {
+  background-color: #f44336 !important;
+}
+
+.bg-warning {
+  background-color: #ff9800 !important;
+}
+
+.bg-info {
+  background-color: #29b6f6 !important;
+}
+
+/* Modal styling */
+.modal-header {
+  border-bottom: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+.modal-footer {
+  border-top: 1px solid #e9ecef;
+  background-color: #f8f9fa;
+}
+
+/* Status alerts */
+.alert-warning {
+  background-color: rgba(255, 152, 0, 0.1);
+  color: #ff9800;
+  border-left: 4px solid #ff9800;
+}
+
+.alert-danger {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+  border-left: 4px solid #f44336;
+}
+
+/* Link styling */
+.alert-link {
+  color: #7c4dff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.alert-link:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .reply {
+    margin-left: 1.5rem;
+  }
 }

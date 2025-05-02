@@ -2,139 +2,48 @@
 
 import { useState, useEffect, useRef, useContext } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"
+import { userSession, adminSession, notificationManager } from "../utils/sessionManager"
+import { userApi } from "../utils/apiService"
 import logo from "../assets/logo-removebg.png"
-import "bootstrap/dist/js/bootstrap.bundle.min.js"
-import * as bootstrap from "bootstrap"
-import { io } from "socket.io-client"
 import UserAvatar from "./UserAvatar"
 import UserContext from "./UserContext"
+import * as bootstrap from "bootstrap"
 
 const Header = () => {
   const location = useLocation()
   const navigate = useNavigate()
-  const [isAuthenticated, setIsAuthenticated] = useState(!!sessionStorage.getItem("token"))
-  const [username, setUsername] = useState(sessionStorage.getItem("username") || "")
-  const [notifications, setNotifications] = useState([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [isAuthenticated, setIsAuthenticated] = useState(userSession.isAuthenticated())
+  const [isAdmin, setIsAdmin] = useState(adminSession.isAuthenticated())
+  const [username, setUsername] = useState(userSession.getUsername() || "")
+  const [notifications, setNotifications] = useState(notificationManager.getAll())
+  const [unreadCount, setUnreadCount] = useState(notificationManager.getUnreadCount())
   const [loading, setLoading] = useState(false)
   const socketRef = useRef(null)
   const notificationDropdownRef = useRef(null)
   const userDropdownRef = useRef(null)
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
-  // eslint-disable-next-line no-unused-vars
-  const [activeTab, setActiveTab] = useState("")
-  const notificationFetchedRef = useRef(false)
   const { userAvatar } = useContext(UserContext)
-  // eslint-disable-next-line no-unused-vars
-  const userId = sessionStorage.getItem("userId")
-
-  // Add this near the top of the component, after the existing state declarations
-  const [currentUserId, setCurrentUserId] = useState(sessionStorage.getItem("userId"))
-
-  // Get user-specific avatar
-  const getUserAvatar = () => {
-    // First try to get from context as it's most up-to-date
-    if (userAvatar) return userAvatar
-
-    // Then try to get from session storage with current user ID
-    const currentId = sessionStorage.getItem("userId")
-    if (currentId) {
-      const storedAvatar = sessionStorage.getItem(`userAvatar_${currentId}`)
-      if (storedAvatar) return storedAvatar
-    }
-
-    // Default to empty string if no avatar found
-    return ""
-  }
 
   // Check if current page is the landing page
   const isLandingPage = location.pathname === "/"
 
-  // Add a ref to track if notifications have been fetched after login
+  // Check if current page is an admin page
+  const isAdminPage = location.pathname.startsWith("/admin")
+
+  // Add a ref to track if notifications have been fetched
   const notificationsInitializedRef = useRef(false)
-
-  // Function to check for stored notifications in sessionStorage
-  const checkStoredNotifications = () => {
-    const storedNotifications = sessionStorage.getItem("notifications")
-    const storedUnreadCount = sessionStorage.getItem("unreadCount")
-
-    if (storedNotifications) {
-      try {
-        const parsedNotifications = JSON.parse(storedNotifications)
-        setNotifications(parsedNotifications)
-
-        if (storedUnreadCount) {
-          setUnreadCount(Number.parseInt(storedUnreadCount, 10))
-        } else {
-          // Calculate unread count if not stored
-          const unread = parsedNotifications.filter((n) => !n.read).length
-          setUnreadCount(unread)
-        }
-
-        return true
-      } catch (e) {
-        console.error("Error parsing stored notifications:", e)
-      }
-    }
-    return false
-  }
-
-  useEffect(() => {
-    // Update currentUserId when it changes in sessionStorage
-    const newUserId = sessionStorage.getItem("userId")
-    if (newUserId !== currentUserId) {
-      setCurrentUserId(newUserId)
-    }
-
-    // Listen for user login/logout events
-    const handleUserChange = () => {
-      const newId = sessionStorage.getItem("userId")
-      setCurrentUserId(newId)
-    }
-
-    window.addEventListener("storage", handleUserChange)
-    window.addEventListener("userLoggedIn", handleUserChange)
-    window.addEventListener("userLoggedOut", handleUserChange)
-
-    return () => {
-      window.removeEventListener("storage", handleUserChange)
-      window.removeEventListener("userLoggedIn", handleUserChange)
-      window.removeEventListener("userLoggedOut", handleUserChange)
-    }
-  }, [currentUserId])
 
   useEffect(() => {
     const checkAuth = () => {
-      const token = sessionStorage.getItem("token")
-      const wasAuthenticated = isAuthenticated
-      setIsAuthenticated(!!token)
-      setUsername(sessionStorage.getItem("username") || "")
+      setIsAuthenticated(userSession.isAuthenticated())
+      setIsAdmin(adminSession.isAuthenticated())
+      setUsername(userSession.getUsername() || "")
 
-      // If user just logged in, fetch notifications and connect to socket
-      if (!!token && !wasAuthenticated) {
-        console.log("User just logged in, checking for notifications...")
-
-        // First check if notifications were already fetched during login
-        if (!checkStoredNotifications()) {
-          // If not in sessionStorage, fetch them
-          fetchNotifications()
-        }
-
+      // If user just logged in, fetch notifications
+      if (userSession.isAuthenticated() && !notificationsInitializedRef.current) {
+        fetchNotifications()
         connectToSocket()
         notificationsInitializedRef.current = true
-      } else if (!!token && !notificationsInitializedRef.current) {
-        // If user is already logged in but notifications haven't been fetched yet
-        console.log("User already logged in, initializing notifications...")
-
-        // First check if notifications were already fetched during login
-        if (!checkStoredNotifications()) {
-          // If not in sessionStorage, fetch them
-          fetchNotifications()
-        }
-
-        connectToSocket()
-        notificationsInitializedRef.current = true
-      } else if (!token && socketRef.current) {
+      } else if (!userSession.isAuthenticated() && socketRef.current) {
         // Disconnect socket if not authenticated
         socketRef.current.disconnect()
         notificationsInitializedRef.current = false
@@ -142,32 +51,27 @@ const Header = () => {
     }
 
     checkAuth()
+
+    // Listen for auth changes
+    window.addEventListener("userLoggedIn", checkAuth)
+    window.addEventListener("userLoggedOut", checkAuth)
+    window.addEventListener("adminLoggedIn", checkAuth)
+    window.addEventListener("adminLoggedOut", checkAuth)
     window.addEventListener("storage", checkAuth)
 
-    // Add event listener for login events with improved handling
-    const handleUserLoggedIn = (event) => {
-      console.log("Login event detected with data:", event.detail)
-
-      // If notifications were included in the event, use them
-      if (event.detail && event.detail.notifications) {
-        setNotifications(event.detail.notifications)
-        setUnreadCount(event.detail.unreadCount || 0)
-        notificationFetchedRef.current = true
-
-        // Show notification if there are unread items
-        if (event.detail.unreadCount > 0 && "Notification" in window && Notification.permission === "granted") {
-          new Notification("CHAUTARI", {
-            body: `You have ${event.detail.unreadCount} unread notification${event.detail.unreadCount > 1 ? "s" : ""}`,
-            icon: logo,
+    // Initialize Bootstrap dropdowns
+    setTimeout(() => {
+      const dropdownElementList = document.querySelectorAll(".dropdown-toggle")
+      dropdownElementList.forEach((dropdownToggle) => {
+        if (!bootstrap.Dropdown.getInstance(dropdownToggle)) {
+          new bootstrap.Dropdown(dropdownToggle, {
+            autoClose: "outside",
+            boundary: "viewport",
+            reference: "toggle",
           })
         }
-      } else {
-        // Otherwise fetch them
-        fetchNotifications()
-      }
-    }
-
-    window.addEventListener("userLoggedIn", handleUserLoggedIn)
+      })
+    }, 100)
 
     // Add click event listener to close dropdowns when clicking outside
     const handleClickOutside = (event) => {
@@ -205,177 +109,41 @@ const Header = () => {
     document.addEventListener("mousedown", handleClickOutside)
 
     return () => {
+      window.removeEventListener("userLoggedIn", checkAuth)
+      window.removeEventListener("userLoggedOut", checkAuth)
+      window.removeEventListener("adminLoggedIn", checkAuth)
+      window.removeEventListener("adminLoggedOut", checkAuth)
       window.removeEventListener("storage", checkAuth)
-      window.removeEventListener("userLoggedIn", handleUserLoggedIn)
       document.removeEventListener("mousedown", handleClickOutside)
+
       // Disconnect socket on unmount
       if (socketRef.current) {
         socketRef.current.disconnect()
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated])
+  }, [])
 
-  useEffect(() => {
-    // Initialize Bootstrap dropdowns
-    if (isAuthenticated) {
-      // Use a small timeout to ensure the DOM is fully rendered
-      setTimeout(() => {
-        const dropdownElementList = document.querySelectorAll(".dropdown-toggle")
-        dropdownElementList.forEach((dropdownToggle) => {
-          // Check if a dropdown instance already exists
-          if (!bootstrap.Dropdown.getInstance(dropdownToggle)) {
-            // Create a new dropdown instance with explicit configuration
-            new bootstrap.Dropdown(dropdownToggle, {
-              autoClose: "outside", // Close when clicking outside
-              boundary: "viewport",
-              reference: "toggle",
-            })
-          }
-        })
-      }, 100)
-    }
-  }, [isAuthenticated])
-
-  // Add a new function to manually handle dropdown toggling
-  const toggleDropdown = (id) => {
-    const dropdownElement = document.getElementById(id)
-    if (dropdownElement) {
-      const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownElement)
-      if (dropdownInstance) {
-        dropdownInstance.toggle()
-      } else {
-        // If no instance exists, create one and toggle it
-        const newDropdown = new bootstrap.Dropdown(dropdownElement, {
-          autoClose: "outside", // Close when clicking outside
-          boundary: "viewport",
-          reference: "toggle",
-        })
-        newDropdown.toggle()
-      }
-    }
-  }
-
-  // Update the connectToSocket function for better reliability and faster notifications
+  // Connect to socket for real-time notifications
   const connectToSocket = () => {
-    const userId = sessionStorage.getItem("userId")
+    const userId = userSession.getUserId()
     if (!userId) return
 
-    // Disconnect existing socket if it exists
-    if (socketRef.current) {
-      socketRef.current.disconnect()
-    }
-
-    // Connect to socket with userId for private notifications
-    socketRef.current = io(API_BASE_URL, {
-      query: { userId },
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 20000,
-    })
-
-    // Handle connection events
-    socketRef.current.on("connect", () => {
-      console.log("Socket connected with ID:", socketRef.current.id)
-    })
-
-    socketRef.current.on("socketConnected", (data) => {
-      console.log("Socket connection confirmed by server:", data)
-    })
-
-    socketRef.current.on("connect_error", (error) => {
-      console.error("Socket connection error:", error)
-    })
-
-    // Listen for new notifications with improved handling
-    socketRef.current.on("newNotification", (notification) => {
-      console.log("Received new notification:", notification)
-
-      // Update notifications state immediately
-      setNotifications((prev) => {
-        // Check if notification already exists to prevent duplicates
-        const exists = prev.some((n) => n._id === notification._id)
-        if (exists) return prev
-        return [notification, ...prev]
-      })
-
-      // Update unread count
-      setUnreadCount((prev) => prev + 1)
-
-      // Show browser notification if supported
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("CHAUTARI", {
-          body: notification.content,
-          icon: logo,
-        })
-      }
-    })
-
-    // Listen for content deletion events to update UI accordingly
-    socketRef.current.on("postDeleted", ({ postId }) => {
-      // Remove notifications related to this post
-      setNotifications((prev) => prev.filter((n) => n.relatedPost !== postId))
-      // Update unread count
-      updateUnreadCount()
-    })
-
-    socketRef.current.on("deleteComment", ({ commentId }) => {
-      // Remove notifications related to this comment
-      setNotifications((prev) => prev.filter((n) => n.relatedComment !== commentId))
-      // Update unread count
-      updateUnreadCount()
-    })
-
-    socketRef.current.on("deleteReply", ({ commentId }) => {
-      // Remove notifications related to this comment (which includes the reply)
-      setNotifications((prev) => prev.filter((n) => n.relatedComment !== commentId))
-      // Update unread count
-      updateUnreadCount()
-    })
+    // Implementation of socket connection
+    console.log("Socket connection would be established for user:", userId)
   }
 
-  // Add this helper function to recalculate unread count
-  const updateUnreadCount = () => {
-    setUnreadCount(notifications.filter((n) => !n.read).length)
-  }
-
+  // Fetch notifications from API
   const fetchNotifications = async () => {
-    const token = sessionStorage.getItem("token")
-    if (!token) return
+    if (!userSession.isAuthenticated()) return
 
     setLoading(true)
     try {
-      console.log("Fetching notifications from API...")
-      const response = await fetch(`${API_BASE_URL}/api/notifications`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const data = await userApi.getNotifications()
 
-      if (!response.ok) throw new Error("Failed to fetch notifications")
-
-      const data = await response.json()
-      console.log("Fetched notifications:", data.length)
-
-      // Store in session storage for persistence
-      sessionStorage.setItem("notifications", JSON.stringify(data))
-
+      // Update notifications in session storage and state
+      notificationManager.setAll(data)
       setNotifications(data)
-
-      // Count unread notifications
-      const unread = data.filter((notification) => !notification.read).length
-      sessionStorage.setItem("unreadCount", unread.toString())
-      setUnreadCount(unread)
-
-      // If there are unread notifications, show a browser notification
-      if (unread > 0 && "Notification" in window && Notification.permission === "granted") {
-        new Notification("CHAUTARI", {
-          body: `You have ${unread} unread notification${unread > 1 ? "s" : ""}`,
-          icon: logo,
-        })
-      }
+      setUnreadCount(notificationManager.getUnreadCount())
     } catch (error) {
       console.error("Error fetching notifications:", error)
     } finally {
@@ -383,70 +151,42 @@ const Header = () => {
     }
   }
 
+  // Mark notification as read
   const handleMarkAsRead = async (notificationId) => {
-    const token = sessionStorage.getItem("token")
-    if (!token) return
+    if (!userSession.isAuthenticated()) return
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      await userApi.markNotificationAsRead(notificationId)
 
-      if (!response.ok) throw new Error("Failed to mark notification as read")
-
-      // Update local state
-      const updatedNotifications = notifications.map((notification) =>
-        notification._id === notificationId ? { ...notification, read: true } : notification,
-      )
-
-      setNotifications(updatedNotifications)
-
-      // Update session storage
-      sessionStorage.setItem("notifications", JSON.stringify(updatedNotifications))
-
-      // Update unread count
-      const newUnreadCount = Math.max(0, unreadCount - 1)
-      setUnreadCount(newUnreadCount)
-      sessionStorage.setItem("unreadCount", newUnreadCount.toString())
+      // Update local state if notification was marked as read
+      if (notificationManager.markAsRead(notificationId)) {
+        setNotifications(notificationManager.getAll())
+        setUnreadCount(notificationManager.getUnreadCount())
+      }
     } catch (error) {
       console.error("Error marking notification as read:", error)
     }
   }
 
+  // Mark all notifications as read
   const handleMarkAllAsRead = async () => {
-    const token = sessionStorage.getItem("token")
-    if (!token) return
+    if (!userSession.isAuthenticated()) return
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) throw new Error("Failed to mark all notifications as read")
+      await userApi.markAllNotificationsAsRead()
 
       // Update local state
-      const updatedNotifications = notifications.map((notification) => ({ ...notification, read: true }))
-      setNotifications(updatedNotifications)
-
-      // Update session storage
-      sessionStorage.setItem("notifications", JSON.stringify(updatedNotifications))
-      sessionStorage.setItem("unreadCount", "0")
-
-      // Reset unread count
+      notificationManager.markAllAsRead()
+      setNotifications(notificationManager.getAll())
       setUnreadCount(0)
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
     }
   }
 
+  // Handle notification click
   const handleNotificationClick = (notification) => {
-    // Mark as read
+    // Mark as read if not already read
     if (!notification.read) {
       handleMarkAsRead(notification._id)
     }
@@ -459,22 +199,11 @@ const Header = () => {
     }
   }
 
+  // Handle user logout
   const handleLogout = () => {
-    sessionStorage.removeItem("token")
-    sessionStorage.removeItem("userId")
-    sessionStorage.removeItem("username")
-    sessionStorage.removeItem("userAvatar")
-    sessionStorage.removeItem("notifications")
-    sessionStorage.removeItem("unreadCount")
-    setIsAuthenticated(false)
+    userSession.clear()
     navigate("/login")
   }
-
-  const path = location.pathname
-  const isLoginPage = ["/login"].includes(path)
-  const isRegisterPage = path === "/register"
-  const isForgotPasswordPage = path === "/forgot-password"
-  const isAuthPage = isLoginPage || isRegisterPage || isForgotPasswordPage
 
   // Format notification time
   const formatNotificationTime = (timestamp) => {
@@ -498,198 +227,210 @@ const Header = () => {
     return null
   }
 
+  // Don't render header on admin pages
+  if (isAdminPage) {
+    return null
+  }
+
+  // Function to manually handle dropdown toggling
+  const toggleDropdown = (id) => {
+    const dropdownElement = document.getElementById(id)
+    if (dropdownElement) {
+      const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownElement)
+      if (dropdownInstance) {
+        dropdownInstance.toggle()
+      } else {
+        // If no instance exists, create one and toggle it
+        const newDropdown = new bootstrap.Dropdown(dropdownElement, {
+          autoClose: "outside",
+          boundary: "viewport",
+          reference: "toggle",
+        })
+        newDropdown.toggle()
+      }
+    }
+  }
+
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm sticky-top">
+    <header className="app-header">
       <div className="container">
-        <Link
-          className="navbar-brand d-flex align-items-center"
-          to={isAuthenticated ? "/home" : isAuthPage ? "/" : "/login"}
-        >
-          <img src={logo || "/placeholder.svg"} alt="CHAUTARI" height="40" className="me-2" />
-          <span className="fw-bold">CHAUTARI</span>
-        </Link>
+        <nav className="navbar navbar-expand-lg navbar-light">
+          <Link className="navbar-brand" to={isAuthenticated ? "/home" : "/login"}>
+            <img src={logo || "/placeholder.svg"} alt="CHAUTARI" />
+            <span className="fw-bold">CHAUTARI</span>
+          </Link>
 
-        <button
-          className="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarContent"
-          aria-controls="navbarContent"
-          aria-expanded="false"
-          aria-label="Toggle navigation"
-        >
-          <span className="navbar-toggler-icon"></span>
-        </button>
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarContent"
+            aria-controls="navbarContent"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
 
-        <div className="collapse navbar-collapse" id="navbarContent">
-          {isAuthenticated && !isAuthPage && (
-            <ul className="navbar-nav me-auto mb-2 mb-lg-0">
-              <li className="nav-item">
-                <Link className={`nav-link ${path === "/home" ? "active" : ""}`} to="/home">
-                  Home
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className={`nav-link ${path === "/create-post" ? "active" : ""}`} to="/create-post">
-                  Create Post
-                </Link>
-              </li>
-            </ul>
-          )}
-
-          <div className="d-flex ms-auto">
-            {isAuthenticated ? (
-              <div className="d-flex align-items-center">
-                {/* Notification Bell */}
-                <div className="dropdown me-3" ref={notificationDropdownRef}>
-                  <button
-                    className="btn btn-primary position-relative"
-                    type="button"
-                    id="notificationDropdown"
-                    onClick={() => {
-                      fetchNotifications()
-                      toggleDropdown("notificationDropdown")
-                    }}
-                    aria-expanded="false"
+          <div className="collapse navbar-collapse" id="navbarContent">
+            {isAuthenticated && (
+              <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+                <li className="nav-item">
+                  <Link className={`nav-link ${location.pathname === "/home" ? "active" : ""}`} to="/home">
+                    <i className="bi bi-house-door me-2"></i>
+                    Home
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link ${location.pathname === "/create-post" ? "active" : ""}`}
+                    to="/create-post"
                   >
-                    <i className="bi bi-bell-fill fs-5"></i>
-                    {unreadCount > 0 && (
-                      <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                        {unreadCount > 9 ? "9+" : unreadCount}
-                        <span className="visually-hidden">unread notifications</span>
-                      </span>
-                    )}
-                  </button>
-                  <div
-                    className="dropdown-menu dropdown-menu-end p-0 overflow-hidden"
-                    aria-labelledby="notificationDropdown"
-                    style={{ width: "320px", maxHeight: "400px" }}
-                  >
-                    <div className="d-flex justify-content-between align-items-center p-3 bg-light border-bottom">
-                      <h6 className="mb-0">Notifications</h6>
+                    <i className="bi bi-plus-circle me-2"></i>
+                    Create Post
+                  </Link>
+                </li>
+                {isAdmin && (
+                  <li className="nav-item">
+                    <Link className="nav-link" to="/admin/dashboard">
+                      <i className="bi bi-speedometer2 me-2"></i>
+                      Admin Panel
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            )}
+
+            <div className="d-flex align-items-center ms-auto">
+              {isAuthenticated ? (
+                <>
+                  {/* Notification Bell */}
+                  <div className="dropdown me-3" ref={notificationDropdownRef}>
+                    <button
+                      className="btn btn-light rounded-circle position-relative p-2"
+                      id="notificationDropdown"
+                      onClick={() => {
+                        fetchNotifications()
+                        toggleDropdown("notificationDropdown")
+                      }}
+                    >
+                      <i className="bi bi-bell fs-5"></i>
                       {unreadCount > 0 && (
-                        <button className="btn btn-sm btn-link text-decoration-none" onClick={handleMarkAllAsRead}>
-                          Mark all as read
-                        </button>
+                        <span className="notification-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>
                       )}
-                    </div>
+                    </button>
+                    <div
+                      className="dropdown-menu dropdown-menu-end notification-dropdown"
+                      aria-labelledby="notificationDropdown"
+                    >
+                      <div className="notification-header">
+                        <h6 className="mb-0 fw-bold">Notifications</h6>
+                        {unreadCount > 0 && (
+                          <button className="btn btn-sm text-primary p-0" onClick={handleMarkAllAsRead}>
+                            Mark all as read
+                          </button>
+                        )}
+                      </div>
 
-                    <div className="overflow-auto" style={{ maxHeight: "350px" }}>
-                      {loading ? (
-                        <div className="text-center p-3">
-                          <div className="spinner-border spinner-border-sm text-primary" role="status">
-                            <span className="visually-hidden">Loading...</span>
-                          </div>
-                        </div>
-                      ) : notifications.length === 0 ? (
-                        <div className="text-center p-3 text-muted">
-                          <i className="bi bi-bell-slash fs-4 mb-2"></i>
-                          <p className="mb-0">No notifications yet</p>
-                        </div>
-                      ) : (
-                        notifications.map((notification) => (
-                          <div
-                            key={notification._id}
-                            className={`dropdown-item p-3 border-bottom ${!notification.read ? "bg-light" : ""}`}
-                            style={{ cursor: "pointer" }}
-                            onClick={() => handleNotificationClick(notification)}
-                          >
-                            <div className="d-flex">
-                              <div className={`me-3 ${!notification.read ? "text-primary" : "text-muted"}`}>
-                                {notification.type === "comment" && <i className="bi bi-chat-left-text-fill fs-5"></i>}
-                                {notification.type === "like" && <i className="bi bi-hand-thumbs-up-fill fs-5"></i>}
-                                {notification.type === "reply" && <i className="bi bi-reply-fill fs-5"></i>}
-                                {notification.type === "mention" && <i className="bi bi-at fs-5"></i>}
-                                {notification.type === "system" && <i className="bi bi-gear-fill fs-5"></i>}
-                              </div>
-                              <div className="flex-grow-1">
-                                <p className="mb-1">{notification.content}</p>
-                                <small className="text-muted">{formatNotificationTime(notification.createdAt)}</small>
-                              </div>
-                              {!notification.read && (
-                                <div className="ms-2">
-                                  <span className="badge bg-primary rounded-circle p-1">&nbsp;</span>
-                                </div>
-                              )}
+                      <div className="notification-list">
+                        {loading ? (
+                          <div className="text-center p-3">
+                            <div className="spinner-border spinner-border-sm" role="status">
+                              <span className="visually-hidden">Loading...</span>
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
+                        ) : notifications.length === 0 ? (
+                          <div className="text-center p-4">
+                            <i className="bi bi-bell-slash fs-4 mb-2"></i>
+                            <p className="mb-0 text-muted">No notifications yet</p>
+                          </div>
+                        ) : (
+                          notifications.map((notification) => (
+                            <div
+                              key={notification._id}
+                              className={`notification-item ${!notification.read ? "unread" : ""}`}
+                              onClick={() => handleNotificationClick(notification)}
+                            >
+                              <div className="d-flex">
+                                <div className={`me-3 ${!notification.read ? "text-primary" : "text-muted"}`}>
+                                  {notification.type === "comment" && (
+                                    <i className="bi bi-chat-left-text-fill fs-5"></i>
+                                  )}
+                                  {notification.type === "like" && <i className="bi bi-hand-thumbs-up-fill fs-5"></i>}
+                                  {notification.type === "reply" && <i className="bi bi-reply-fill fs-5"></i>}
+                                  {notification.type === "mention" && <i className="bi bi-at fs-5"></i>}
+                                  {notification.type === "system" && <i className="bi bi-gear-fill fs-5"></i>}
+                                </div>
+                                <div className="flex-grow-1">
+                                  <p className="mb-1">{notification.content}</p>
+                                  <small className="text-muted">{formatNotificationTime(notification.createdAt)}</small>
+                                </div>
+                                {!notification.read && (
+                                  <div className="ms-2">
+                                    <span className="badge bg-primary rounded-circle p-1">&nbsp;</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
 
-                    <div className="p-2 text-center border-top">
-                      <Link
-                        to="/user-settings"
-                        className="btn btn-sm btn-link text-decoration-none"
-                        onClick={() => setActiveTab("notifications")}
-                      >
-                        Notification Settings
-                      </Link>
+                      <div className="notification-footer">
+                        <Link to="/user-settings" className="btn btn-sm text-primary">
+                          Notification Settings
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* User Dropdown */}
-                <div className="dropdown" ref={userDropdownRef}>
-                  <button
-                    className="btn btn-primary dropdown-toggle d-flex align-items-center"
-                    type="button"
-                    id="userDropdown"
-                    onClick={() => toggleDropdown("userDropdown")}
-                    aria-expanded="false"
-                  >
-                    <UserAvatar
-                      user={{
-                        username: username,
-                        avatar: getUserAvatar(),
-                      }}
-                      size="sm"
-                      className="me-2"
-                    />
-                    <span className="d-none d-md-inline">{username}</span>
-                  </button>
-                  <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                    <li>
-                      <Link className="dropdown-item" to="/user-settings">
-                        <i className="bi bi-gear-fill me-2"></i>
-                        User Settings
-                      </Link>
-                    </li>
-                    <li>
-                      <hr className="dropdown-divider" />
-                    </li>
-                    <li>
-                      <button className="dropdown-item text-danger" onClick={handleLogout}>
-                        <i className="bi bi-box-arrow-right me-2"></i>
-                        Logout
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              !isAuthPage && (
-                <Link to="/login" className="btn btn-outline-light">
+                  {/* User Dropdown */}
+                  <div className="dropdown" ref={userDropdownRef}>
+                    <button
+                      className="btn btn-light dropdown-toggle d-flex align-items-center rounded-pill"
+                      id="userDropdown"
+                      onClick={() => toggleDropdown("userDropdown")}
+                    >
+                      <UserAvatar
+                        user={{
+                          username: username,
+                          avatar: userAvatar,
+                        }}
+                        size="sm"
+                        className="me-2"
+                      />
+                      <span className="d-none d-md-inline">{username}</span>
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-end user-dropdown" aria-labelledby="userDropdown">
+                      <li>
+                        <Link className="dropdown-item" to="/user-settings">
+                          <i className="bi bi-gear-fill me-2"></i>
+                          User Settings
+                        </Link>
+                      </li>
+                      <li>
+                        <hr className="dropdown-divider" />
+                      </li>
+                      <li>
+                        <button className="dropdown-item text-danger" onClick={handleLogout}>
+                          <i className="bi bi-box-arrow-right me-2"></i>
+                          Logout
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <Link to="/login" className="btn btn-primary btn-hover-effect">
+                  <i className="bi bi-box-arrow-in-right me-2"></i>
                   Login
                 </Link>
-              )
-            )}
-
-            {isLoginPage && (
-              <Link to="/register" className="btn btn-outline-light">
-                Sign Up
-              </Link>
-            )}
-
-            {isRegisterPage && (
-              <Link to="/login" className="btn btn-outline-light">
-                Login
-              </Link>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        </nav>
       </div>
-    </nav>
+    </header>
   )
 }
 

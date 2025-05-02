@@ -1,102 +1,269 @@
+/* Home page specific styles */
+.sidebar {
+  background-color: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  height: calc(100vh - 100px);
+  position: sticky;
+  top: 100px;
+  overflow-y: auto;
+}
+
 /* Custom styles for Home page */
 .hover-card {
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 1rem;
+  overflow: hidden;
+  background-color: #ffffff;
+  color: #212529;
 }
 
 .hover-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Sidebar styles */
-.sidebar {
-  height: calc(100vh - 56px);
-  overflow-y: auto;
-  position: sticky;
-  top: 56px;
-}
-
-.list-group-item {
-  border: none;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem !important;
-  margin-bottom: 0.25rem;
-}
-
-.list-group-item.active {
-  background-color: var(--bs-primary);
-}
-
-.list-group-item:hover:not(.active) {
-  background-color: rgba(var(--bs-primary-rgb), 0.1);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
 /* Main content area */
 .main-content {
   min-height: calc(100vh - 56px);
   background-color: #f8f9fa;
+  padding-top: 1.5rem;
+}
+
+.main-content {
+  padding: 2rem 0;
 }
 
 /* Category selection styles */
 .category-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 2rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  background-color: rgba(124, 77, 255, 0.1);
+  color: #7c4dff;
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: inline-block;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .category-badge:hover {
-  opacity: 0.9;
+  background-color: rgba(124, 77, 255, 0.2);
   transform: translateY(-2px);
+}
+
+.category-badge.selected {
+  background-color: #7c4dff;
+  color: white;
 }
 
 /* Activity feed styles */
 .activity-item {
-  transition: background-color 0.2s ease;
+  padding: 1rem;
   border-radius: 0.5rem;
-  padding: 0.75rem;
-}
-
-.activity-item:hover {
-  background-color: rgba(var(--bs-primary-rgb), 0.05);
+  margin-bottom: 1rem;
+  background-color: white;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  color: #212529;
 }
 
 /* Activity log styles */
 .activity-log-container {
   max-height: 500px;
   overflow-y: auto;
+  padding: 1rem;
+  background-color: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  color: #212529;
 }
 
 .activity-icon {
   width: 40px;
   height: 40px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  margin-right: 1rem;
 }
 
+/* Activity icon colors */
 .activity-icon.post {
-  background-color: rgba(var(--bs-primary-rgb), 0.1);
-  color: var(--bs-primary);
+  background-color: rgba(124, 77, 255, 0.1);
+  color: #7c4dff;
 }
 
 .activity-icon.comment {
-  background-color: rgba(var(--bs-success-rgb), 0.1);
-  color: var(--bs-success);
+  background-color: rgba(41, 182, 246, 0.1);
+  color: #29b6f6;
+}
+
+.activity-icon.reaction {
+  background-color: rgba(255, 110, 64, 0.1);
+  color: #ff6e40;
 }
 
 .activity-icon.like {
-  background-color: rgba(var(--bs-primary-rgb), 0.1);
-  color: var(--bs-primary);
+  background-color: rgba(13, 110, 253, 0.1);
+  color: var(--primary-color);
 }
 
 .activity-icon.dislike {
-  background-color: rgba(var(--bs-danger-rgb), 0.1);
-  color: var(--bs-danger);
+  background-color: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+}
+
+/* Card stats */
+.stat-card {
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  height: 100%;
+  background-color: #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  color: #212529;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Card stats */
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+/* Category cloud */
+.category-selection {
+  border-radius: 0.75rem;
+  background-color: #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  color: #212529;
+}
+
+/* Fix for post titles and content */
+.post-title,
+.post-content {
+  color: #212529;
+}
+
+/* Fix for metadata text */
+.post-meta,
+.post-category {
+  color: #6c757d;
+}
+
+/* Fix for card headers and footers */
+.card-header,
+.card-footer {
+  background-color: rgba(0, 0, 0, 0.03);
+  color: #212529;
+}
+
+/* Badge */
+.badge {
+  font-weight: 500;
+  padding: 0.5em 0.75em;
+}
+
+.badge-primary {
+  background-color: #7c4dff;
+}
+
+/* Button styling */
+.btn-outline-primary {
+  color: #7c4dff;
+  border-color: #7c4dff;
+}
+
+.btn-outline-primary:hover {
+  background-color: #7c4dff;
+  border-color: #7c4dff;
+  color: white;
+}
+
+.btn-outline-danger {
+  color: #f44336;
+  border-color: #f44336;
+}
+
+.btn-outline-danger:hover {
+  background-color: #f44336;
+  border-color: #f44336;
+  color: white;
+}
+
+.rounded-pill {
+  border-radius: 50rem !important;
+}
+
+/* List group styling */
+.list-group-item {
+  border: none;
+  padding: 0.75rem 1.25rem;
+  background-color: transparent;
+  transition: all 0.2s ease;
+}
+
+.list-group-item:hover {
+  background-color: rgba(124, 77, 255, 0.05);
+}
+
+.list-group-item.active {
+  background-color: #7c4dff;
+  color: white;
+}
+
+/* Profile section */
+.profile-header {
+  background-color: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  color: #adb5bd;
+  margin-bottom: 1.5rem;
+}
+
+.empty-state-text {
+  color: #6c757d;
+  margin-bottom: 1.5rem;
 }
 
 /* Responsive adjustments */
-@media (max-width: 992px) {
+@media (max-width: 991.98px) {
   .sidebar {
     height: auto;
     position: static;
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 992px) {
+  .hover-card {
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .category-badge {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.9rem;
   }
 }

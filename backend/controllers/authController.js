@@ -221,6 +221,10 @@ const loginUser = async (req, res) => {
       return res.status(400).json({ msg: "Invalid username or password" })
     }
 
+    // Update last login time
+    user.lastLogin = Date.now()
+    await user.save()
+
     const payload = {
       user: {
         id: user.id,

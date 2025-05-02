@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+const mongoose = require("mongoose")
 
-const postSchema = new mongoose.Schema(
+const PostSchema = new mongoose.Schema(
   {
     title: {
       type: String,
@@ -10,28 +10,20 @@ const postSchema = new mongoose.Schema(
     content: {
       type: String,
       required: true,
-      trim: true,
     },
     category: {
       type: String,
-      default: "Uncategorized",
+      required: true,
     },
     coverImage: {
       type: String,
+      default: null,
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    edited: {
-      type: Boolean,
-      default: false,
-    },
-    editedAt: {
-      type: Date,
-    },
-    
     likes: {
       type: Number,
       default: 0,
@@ -40,7 +32,6 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    
     likedBy: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -53,7 +44,23 @@ const postSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    
+    edited: {
+      type: Boolean,
+      default: false,
+    },
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    rejectionReason: {
+      type: String,
+      default: "",
+    },
     comments: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -61,16 +68,23 @@ const postSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
-);
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
+)
 
 // Add a virtual for commentCount that's easier to use than counting the array length
-postSchema.virtual('commentCount').get(function() {
-  return this.comments.length;
-});
+PostSchema.virtual("commentCount").get(function () {
+  return this.comments ? this.comments.length : 0
+})
 
-postSchema.statics.isValidObjectId = function (id) {
-  return mongoose.Types.ObjectId.isValid(id);
-};
+// Add indexes for faster queries
+PostSchema.index({ user: 1 })
+PostSchema.index({ status: 1 })
+PostSchema.index({ category: 1 })
+PostSchema.index({ createdAt: -1 })
 
-module.exports = mongoose.model("Post", postSchema);
+// Check if the model exists before creating it
+module.exports = mongoose.models.Post || mongoose.model("Post", PostSchema)

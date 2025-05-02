@@ -50,11 +50,11 @@ const LandingPage = () => {
                     </Link>
                   ) : (
                     <>
-                      <Link to="/register" className="btn btn-light btn-lg rounded-pill px-4 fw-medium">
+                      <Link to="/register" className="btn btn-primary btn-lg rounded-pill px-4 fw-medium">
                         <i className="bi bi-person-plus me-2"></i>
                         Sign Up Free
                       </Link>
-                      <Link to="/login" className="btn btn-outline-light btn-lg rounded-pill px-4 fw-medium">
+                      <Link to="/login" className="btn btn-secondary btn-lg rounded-pill px-4 fw-medium">
                         <i className="bi bi-box-arrow-in-right me-2"></i>
                         Log In
                       </Link>
@@ -186,7 +186,7 @@ const LandingPage = () => {
                         <Link to="/register" className="btn btn-primary btn-lg rounded-pill px-5 fw-medium">
                           Sign Up Now
                         </Link>
-                        <Link to="/login" className="btn btn-outline-primary btn-lg rounded-pill px-5 fw-medium">
+                        <Link to="/login" className="btn btn-secondary btn-lg rounded-pill px-5 fw-medium">
                           Log In
                         </Link>
                       </>

@@ -55,6 +55,7 @@ function HomePage() {
   const [activityLoading, setActivityLoading] = useState(false)
   const navigate = useNavigate()
   const { userAvatar } = useContext(UserContext)
+  const [error, setError] = useState(null)
 
   const token = sessionStorage.getItem("token")
   const userId = sessionStorage.getItem("userId")
@@ -78,6 +79,7 @@ function HomePage() {
             sessionStorage.setItem("username", userData.username || "")
 
             // Now fetch posts after categories are loaded
+            fetchPosts()
             const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
             if (!postsResponse.ok) {
               throw new Error("Failed to fetch posts")
@@ -440,7 +442,7 @@ function HomePage() {
           </div>
           <h4 className="text-secondary">No posts available</h4>
           <p className="text-muted">Be the first to create a post in this category!</p>
-          <button className="btn btn-primary mt-2" onClick={() => navigate("/create-post")}>
+          <button className="btn btn-secondary mt-2" onClick={() => navigate("/create-post")}>
             Create a Post
           </button>
         </div>
@@ -491,7 +493,7 @@ function HomePage() {
                 <span>{post.likes || 0}</span>
               </button>
               <button
-                className="btn btn-sm btn-outline-danger rounded-pill d-flex align-items-center gap-1"
+                className="btn btn-sm btn-outline-secondary rounded-pill d-flex align-items-center gap-1"
                 onClick={(e) => handleDislike(post._id, e)}
               >
                 <i className="bi bi-hand-thumbs-down"></i>
@@ -506,6 +508,34 @@ function HomePage() {
         </div>
       </div>
     ))
+  }
+
+  // Update the fetchPosts function to handle post status
+  const fetchPosts = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/posts`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch posts")
+      }
+
+      const data = await response.json()
+
+      // Filter out posts that aren't approved (this is a backup, as the API should already filter)
+      const approvedPosts = data.filter((post) => post.status === "approved")
+
+      setPosts(approvedPosts)
+    } catch (error) {
+      console.error("Error fetching posts:", error)
+      setError("Failed to load posts. Please try again later.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -656,14 +686,17 @@ function HomePage() {
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="mb-0">Your Categories</h5>
                         {!editingCategories ? (
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => setEditingCategories(true)}>
+                          <button
+                            className="btn btn-outline-primary ms-auto"
+                            onClick={() => setEditingCategories(true)}
+                          >
                             <i className="bi bi-pencil me-2"></i>
                             Edit Categories
                           </button>
                         ) : (
                           <div className="d-flex gap-2">
                             <button
-                              className="btn btn-sm btn-outline-secondary"
+                              className="btn btn-outline-secondary btn-sm"
                               onClick={() => {
                                 setEditingCategories(false)
                                 setTempSelectedCategories(selectedCategories)
@@ -672,7 +705,7 @@ function HomePage() {
                               Cancel
                             </button>
                             <button
-                              className="btn btn-sm btn-primary"
+                              className="btn btn-primary btn-sm"
                               onClick={saveCategories}
                               disabled={savingCategories}
                             >

@@ -54,10 +54,30 @@ const userSchema = mongoose.Schema({
       default: true,
     },
   },
+  lastLogin: {
+    type: Date,
+    default: Date.now,
+  },
+  lastActive: {
+    type: Date,
+    default: Date.now,
+  },
+  postCount: {
+    type: Number,
+    default: 0,
+  },
+  commentCount: {
+    type: Number,
+    default: 0,
+  },
 })
 
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password)
 }
 
-module.exports = mongoose.model("User", userSchema)
+// Check if this model is properly registered
+// If the file exists, we'll just make sure the model registration is correct
+
+// Only modify the export line if the file exists
+module.exports = mongoose.models.User || mongoose.model("User", userSchema)

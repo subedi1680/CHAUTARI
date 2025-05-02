@@ -20,9 +20,13 @@ const createPost = async (req, res) => {
       category,
       coverImage,
       user: req.user.id,
+      status: "pending", // Set status to pending by default
     })
 
     await post.save()
+
+    // Notify admins about new post (you could implement this)
+
     res.status(201).json(post)
   } catch (err) {
     console.error("Post creation error:", err.message)
@@ -30,10 +34,10 @@ const createPost = async (req, res) => {
   }
 }
 
-// Modify the getPosts function to populate user avatar
+// Modify the getPosts function to only return approved posts for regular users
 const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find()
+    const posts = await Post.find({ status: "approved" })
       .populate("user", ["username", "avatar"]) // Add avatar to the populated fields
       .populate({
         path: "comments",
@@ -48,7 +52,7 @@ const getPosts = async (req, res) => {
   }
 }
 
-// Modify the getPostById function to populate user avatar
+// Modify the getPostById function to check post status
 const getPostById = async (req, res) => {
   const { id } = req.params
 
@@ -67,9 +71,42 @@ const getPostById = async (req, res) => {
     if (!post) {
       return res.status(404).json({ msg: "Post not found" })
     }
+
+    // If post is not approved, only allow the author or admins to view it
+    if (post.status !== "approved") {
+      // Check if the request includes user info (authenticated)
+      const userId = req.user ? req.user.id : null
+
+      // If not the author, return error
+      if (!userId || post.user._id.toString() !== userId) {
+        return res.status(403).json({
+          msg: "This post is not yet approved and can only be viewed by the author",
+          status: post.status,
+        })
+      }
+    }
+
     res.json(post)
   } catch (err) {
     console.error("Failed to fetch post:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+// Get user's own posts (including pending and rejected)
+const getUserPosts = async (req, res) => {
+  try {
+    const posts = await Post.find({ user: req.user.id })
+      .populate("user", ["username", "avatar"])
+      .populate({
+        path: "comments",
+        select: "_id",
+      })
+      .sort({ createdAt: -1 })
+
+    res.json(posts)
+  } catch (err) {
+    console.error("Failed to fetch user posts:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
 }
@@ -148,6 +185,11 @@ const updatePost = async (req, res) => {
     post.edited = true
     post.editedAt = Date.now()
 
+    // If post was already approved, set it back to pending for re-review
+    if (post.status === "approved") {
+      post.status = "pending"
+    }
+
     await post.save()
     res.json({ msg: "Post updated successfully", post })
   } catch (err) {
@@ -169,6 +211,11 @@ const likePost = async (req, res) => {
     const post = await Post.findById(id)
     if (!post) {
       return res.status(404).json({ msg: "Post not found" })
+    }
+
+    // Only allow interactions with approved posts
+    if (post.status !== "approved") {
+      return res.status(403).json({ msg: "Cannot interact with posts that are not approved" })
     }
 
     // Check if the user is liking their own post - don't create notification in this case
@@ -257,6 +304,11 @@ const dislikePost = async (req, res) => {
       return res.status(404).json({ msg: "Post not found" })
     }
 
+    // Only allow interactions with approved posts
+    if (post.status !== "approved") {
+      return res.status(403).json({ msg: "Cannot interact with posts that are not approved" })
+    }
+
     // Check if the user is disliking their own post - don't create notification in this case
     const isOwnPost = post.user.toString() === userId
 
@@ -325,6 +377,7 @@ module.exports = {
   createPost,
   getPosts,
   getPostById,
+  getUserPosts,
   deletePost,
   updatePost,
   likePost,

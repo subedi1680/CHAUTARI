@@ -30,6 +30,7 @@ function UserSettings() {
   // Avatar state
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
+  const [userAvatar, setUserAvatar] = useState(null)
 
   // Password change state
   const [passwordData, setPasswordData] = useState({
@@ -63,6 +64,42 @@ function UserSettings() {
   const [deleteAccountPassword, setDeleteAccountPassword] = useState("")
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [downloadLoading, setDownloadLoading] = useState(false)
+
+  // Add state for user's own posts
+  const [userPosts, setUserPosts] = useState([])
+  const [postStats, setPostStats] = useState({
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    total: 0,
+  })
+
+  // Add this to fetch user's own posts including pending ones
+  const fetchUserPosts = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/posts/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch your posts")
+      }
+
+      const data = await response.json()
+      setUserPosts(data)
+
+      // Count posts by status
+      const pending = data.filter((post) => post.status === "pending").length
+      const approved = data.filter((post) => post.status === "approved").length
+      const rejected = data.filter((post) => post.status === "rejected").length
+
+      setPostStats({ pending, approved, rejected, total: data.length })
+    } catch (error) {
+      console.error("Error fetching user posts:", error)
+    }
+  }
 
   // Fetch user profile data
   useEffect(() => {
@@ -485,7 +522,7 @@ function UserSettings() {
   }
 
   // Add this function to manually initialize the modal
-   
+
   const initializeModal = () => {
     const modalElement = document.getElementById("deleteAccountModal")
     if (modalElement) {
@@ -581,6 +618,9 @@ function UserSettings() {
         focus: true,
       })
     }
+
+    // Fetch user posts on mount
+    fetchUserPosts()
   }, [])
 
   // Handle logout
@@ -692,144 +732,97 @@ function UserSettings() {
         <div className="col-lg-9">
           {/* Profile Information Tab */}
           {activeTab === "profile" && (
-            <div className="card border-0 shadow-sm">
-              <div className="card-header bg-white py-3">
-                <h5 className="card-title mb-0">Profile Information</h5>
-              </div>
-              <div className="card-body">
-                <form onSubmit={handleProfileSubmit}>
-                  <div className="mb-4 text-center">
-                    <div className="position-relative d-inline-block">
-                      {getVerifiedAvatar() ? (
-                        <img
-                          src={getVerifiedAvatar() || "/placeholder.svg"}
-                          alt="Avatar Preview"
-                          className="avatar avatar-xl mb-3"
-                        />
-                      ) : (
-                        <UserAvatar user={userProfile} size="xl" className="mb-3" />
-                      )}
-                      <label
-                        htmlFor="avatar"
-                        className="btn btn-sm btn-primary position-absolute bottom-0 end-0 rounded-circle"
-                      >
-                        <i className="bi bi-pencil"></i>
-                        <span className="sr-only">Change Avatar</span>
-                      </label>
-                    </div>
-                    <input
-                      type="file"
-                      id="avatar"
-                      name="avatar"
-                      accept="image/*"
-                      className="d-none"
-                      onChange={handleAvatarChange}
+            <>
+              <div className="card border-0 shadow-sm rounded-3 mb-4">
+                <div className="card-body p-4">
+                  <div className="d-flex align-items-center mb-4">
+                    <UserAvatar
+                      user={{
+                        username: userProfile?.username || "Guest",
+                        avatar: userAvatar || userProfile?.avatar,
+                      }}
+                      size="lg"
+                      className="me-3"
                     />
-                    <div className="small text-muted mt-1">Click the pencil icon to change your avatar</div>
-
-                    {/* Add a button to update avatar separately */}
-                    {avatarFile && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary mt-2"
-                        onClick={handleAvatarUpdate}
-                        disabled={loading}
-                      >
-                        {loading ? (
-                          <>
-                            <span
-                              className="spinner-border spinner-border-sm me-2"
-                              role="status"
-                              aria-hidden="true"
-                            ></span>
-                            Updating Avatar...
-                          </>
-                        ) : (
-                          <>Update Avatar</>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label htmlFor="username" className="form-label">
-                        Username
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="username"
-                        name="username"
-                        value={userProfile.username}
-                        disabled
-                      />
-                      <small className="text-muted">Username cannot be changed</small>
+                    <div className="ms-3">
+                      <h4 className="mb-1">{userProfile?.username || "Loading..."}</h4>
+                      <p className="text-muted mb-0">{userProfile?.email || ""}</p>
                     </div>
-                    <div className="col-md-6">
-                      <label htmlFor="email" className="form-label">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        id="email"
-                        name="email"
-                        value={userProfile.email}
-                        disabled
-                      />
-                      <small className="text-muted">Email cannot be changed</small>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <label htmlFor="bio" className="form-label">
-                      Bio
-                    </label>
-                    <textarea
-                      className="form-control"
-                      id="bio"
-                      name="bio"
-                      rows="3"
-                      value={userProfile.bio}
-                      onChange={handleProfileChange}
-                      placeholder="Tell us about yourself"
-                    ></textarea>
-                  </div>
-
-                  <div className="mb-3">
-                    <label htmlFor="dateOfBirth" className="form-label">
-                      Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      id="dateOfBirth"
-                      name="dateOfBirth"
-                      value={userProfile.dateOfBirth}
-                      disabled
-                    />
-                    <small className="text-muted">Date of birth cannot be changed</small>
-                  </div>
-
-                  <div className="d-flex justify-content-end">
-                    <button type="submit" className="btn btn-primary" disabled={loading}>
-                      {loading ? (
-                        <>
-                          <span
-                            className="spinner-border spinner-border-sm me-2"
-                            role="status"
-                            aria-hidden="true"
-                          ></span>
-                          Saving...
-                        </>
-                      ) : (
-                        <>Save Changes</>
-                      )}
+                    <button className="btn btn-outline-primary ms-auto" onClick={() => navigate("/user-settings")}>
+                      <i className="bi bi-pencil me-2"></i>
+                      Edit Profile
                     </button>
                   </div>
-                </form>
+
+                  <div className="row g-3">
+                    <div className="col-md-4">
+                      <div className="card bg-light border-0">
+                        <div className="card-body text-center">
+                          <i className="bi bi-file-earmark-text fs-4 text-primary mb-2"></i>
+                          <h6 className="card-title">Your Posts</h6>
+                          <h3 className="card-text">{userPosts.length}</h3>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-md-4">
+                      <div className="card bg-light border-0">
+                        <div className="card-body text-center">
+                          <i className="bi bi-chat-left-text fs-4 text-secondary mb-2"></i>
+                          <h6 className="card-title">Comments</h6>
+                          <h3 className="card-text">0</h3>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-md-4">
+                      <div className="card bg-light border-0">
+                        <div className="card-body text-center">
+                          <i className="bi bi-tags fs-4 text-info mb-2"></i>
+                          <h6 className="card-title">Categories</h6>
+                          <h3 className="card-text">0</h3>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <h5 className="mb-0">Your Categories</h5>
+                      <button className="btn btn-outline-secondary ms-auto">
+                        <i className="bi bi-pencil me-2"></i>
+                        Edit Categories
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* User Engagement Stats Component */}
+              {/* <UserEngagementStats userId={userId} /> */}
+
+              {/* Recent Activity Timeline */}
+              <div className="card border-0 shadow-sm rounded-3 mb-4">
+                <div className="card-header bg-white py-3">
+                  <h5 className="card-title mb-0">Recent Activity</h5>
+                </div>
+                <div className="card-body">
+                  {/* <ActivityTimeline limit={5} /> */}
+                  <div className="text-center mt-3">
+                    <button className="btn btn-sm btn-outline-primary" onClick={() => setActiveTab("activity")}>
+                      View All Activity
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* New Activity Tab */}
+          {activeTab === "activity" && (
+            <div className="card border-0 shadow-sm">
+              <div className="card-header bg-white py-3">
+                <h5 className="card-title mb-0">Your Activity History</h5>
+              </div>
+              <div className="card-body">{/* <ActivityTimeline limit={20} /> */}</div>
             </div>
           )}
 

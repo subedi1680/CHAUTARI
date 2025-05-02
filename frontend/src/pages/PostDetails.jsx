@@ -7,6 +7,7 @@ import { useParams, useNavigate } from "react-router-dom"
 import { io } from "socket.io-client"
 import "./PostDetails.css"
 import UserAvatar from "../components/UserAvatar"
+import ReportModal from "../components/ReportModal"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 const socket = io(API_BASE_URL, { withCredentials: true })
@@ -44,6 +45,8 @@ function PostDetails() {
   const [showImagePreview, setShowImagePreview] = useState(false)
   const [imagePreviewSrc, setImagePreviewSrc] = useState(null)
   const [activeReplyId, setActiveReplyId] = useState(null)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportContent, setReportContent] = useState({ type: "", id: "" })
 
   const commentInputRef = useRef(null)
   const navigate = useNavigate()
@@ -410,6 +413,31 @@ function PostDetails() {
     }
   }
 
+  const handleReport = (contentType, contentId) => {
+    setReportContent({ type: contentType, id: contentId })
+    setShowReportModal(true)
+  }
+
+  const handleReportSuccess = () => {
+    setShowReportModal(false)
+    // Show success message
+    const successAlert = document.createElement("div")
+    successAlert.className =
+      "alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-4"
+    successAlert.setAttribute("role", "alert")
+    successAlert.innerHTML = `
+      <i class="bi bi-check-circle-fill me-2"></i>
+      Thank you for your report. Our team will review it shortly.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `
+    document.body.appendChild(successAlert)
+
+    // Remove the alert after 5 seconds
+    setTimeout(() => {
+      successAlert.remove()
+    }, 5000)
+  }
+
   if (error)
     return (
       <div className="container mt-5">
@@ -472,6 +500,31 @@ function PostDetails() {
                 </div>
               )}
 
+              {post.status && post.status !== "approved" && (
+                <div className={`alert ${post.status === "pending" ? "alert-warning" : "alert-danger"} mt-3`}>
+                  <div className="d-flex align-items-center">
+                    <i
+                      className={`bi ${post.status === "pending" ? "bi-hourglass-split" : "bi-x-circle"} me-2 fs-4`}
+                    ></i>
+                    <div>
+                      <strong>
+                        {post.status === "pending" ? "This post is pending approval" : "This post was rejected"}
+                      </strong>
+                      {post.status === "pending" ? (
+                        <p className="mb-0">Only you can see this post until it's approved by an admin.</p>
+                      ) : (
+                        <>
+                          <p className="mb-0">
+                            Reason: {post.rejectionReason || "Content does not meet community guidelines"}
+                          </p>
+                          <p className="mb-0 mt-1">You can edit and resubmit this post for review.</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {post.coverImage && (
                 <div className="mb-4">
                   <img
@@ -497,13 +550,22 @@ function PostDetails() {
                   <span>{post.likes || 0}</span>
                 </button>
                 <button
-                  className={`btn ${post.dislikedBy?.includes(loggedInUserId) ? "btn-danger" : "btn-outline-danger"} rounded-pill d-flex align-items-center gap-2`}
+                  className={`btn ${post.dislikedBy?.includes(loggedInUserId) ? "btn-secondary" : "btn-outline-secondary"} rounded-pill d-flex align-items-center gap-2`}
                   onClick={handleDislike}
                   disabled={!token}
                 >
                   <i className="bi bi-hand-thumbs-down"></i>
                   <span>{post.dislikes || 0}</span>
                 </button>
+                {token && post.user?._id !== loggedInUserId && (
+                  <button
+                    className="btn btn-outline-secondary rounded-pill d-flex align-items-center gap-2"
+                    onClick={() => handleReport("post", post._id)}
+                  >
+                    <i className="bi bi-flag"></i>
+                    <span>Report</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -606,13 +668,24 @@ function PostDetails() {
                       )}
 
                       <div className="d-flex justify-content-between align-items-center mb-3">
-                        <button
-                          className="btn btn-sm btn-link text-decoration-none"
-                          onClick={() => setActiveReplyId(activeReplyId === comment._id ? null : comment._id)}
-                        >
-                          <i className="bi bi-reply me-1"></i>
-                          Reply
-                        </button>
+                        <div>
+                          <button
+                            className="btn btn-sm btn-link text-decoration-none"
+                            onClick={() => setActiveReplyId(activeReplyId === comment._id ? null : comment._id)}
+                          >
+                            <i className="bi bi-reply me-1"></i>
+                            Reply
+                          </button>
+                          {token && comment.user?._id !== loggedInUserId && (
+                            <button
+                              className="btn btn-sm btn-link text-decoration-none text-secondary ms-2"
+                              onClick={() => handleReport("comment", comment._id)}
+                            >
+                              <i className="bi bi-flag me-1"></i>
+                              Report
+                            </button>
+                          )}
+                        </div>
                         <small className="text-muted">
                           {replies[comment._id]?.length || 0} {replies[comment._id]?.length === 1 ? "reply" : "replies"}
                         </small>
@@ -661,14 +734,24 @@ function PostDetails() {
                                     <small className="text-muted">{formatTimeAgo(reply.createdAt)}</small>
                                   </div>
                                 </div>
-                                {reply.user?._id === loggedInUserId && (
-                                  <button
-                                    className="btn btn-sm text-danger"
-                                    onClick={() => handleDeleteReply(reply._id, comment._id)}
-                                  >
-                                    <i className="bi bi-trash"></i>
-                                  </button>
-                                )}
+                                <div>
+                                  {reply.user?._id === loggedInUserId && (
+                                    <button
+                                      className="btn btn-sm text-danger"
+                                      onClick={() => handleDeleteReply(reply._id, comment._id)}
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  )}
+                                  {token && reply.user?._id !== loggedInUserId && (
+                                    <button
+                                      className="btn btn-sm text-secondary ms-1"
+                                      onClick={() => handleReport("reply", reply._id)}
+                                    >
+                                      <i className="bi bi-flag"></i>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               <p className="mb-2">{reply.content}</p>
                               {reply.image && (
@@ -720,6 +803,14 @@ function PostDetails() {
             </div>
           </div>
         </div>
+      )}
+      {showReportModal && (
+        <ReportModal
+          contentType={reportContent.type}
+          contentId={reportContent.id}
+          onClose={() => setShowReportModal(false)}
+          onSuccess={handleReportSuccess}
+        />
       )}
     </div>
   )

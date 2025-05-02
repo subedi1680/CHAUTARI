@@ -1,87 +1,49 @@
+/* eslint-disable react/prop-types */
 "use client"
 
-import PropTypes from "prop-types"
+import { useState } from "react"
 
 const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
-  // Get the first letter of username for fallback
-  const firstLetter = user?.username ? user.username.charAt(0).toUpperCase() : "?"
+  const [imageError, setImageError] = useState(false)
 
-  // Determine size class
-  let sizeClass = "avatar"
-  let dimensions = "40px"
-
-  switch (size) {
-    case "sm":
-      sizeClass += " avatar-sm"
-      dimensions = "32px"
-      break
-    case "lg":
-      sizeClass += " avatar-lg"
-      dimensions = "64px"
-      break
-    case "xl":
-      sizeClass += " avatar-xl"
-      dimensions = "100px"
-      break
-    default:
-      // Default is medium size
-      dimensions = "40px"
-      break
+  // Get initials from username
+  const getInitials = (username) => {
+    if (!username) return "?"
+    return username
+      .split(" ")
+      .map((name) => name[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2)
   }
 
-  // Function to handle image error
-  const handleImageError = (e) => {
-    e.target.onerror = null
-    e.target.style.display = "none"
-    const fallbackElement = e.target.parentNode.querySelector(".avatar-fallback")
-    if (fallbackElement) {
-      fallbackElement.style.display = "flex"
-    }
+  // Handle image load error
+  const handleError = () => {
+    setImageError(true)
   }
 
-  // Determine avatar source - handle both data URLs and base64 strings
-  const avatarSrc = user?.avatar
-    ? user.avatar.startsWith("data:")
-      ? user.avatar
-      : `data:image/jpeg;base64,${user.avatar}`
-    : null
+  // Determine avatar size class
+  const sizeClass =
+    {
+      sm: "avatar-sm",
+      md: "avatar-md",
+      lg: "avatar-lg",
+      xl: "avatar-xl",
+    }[size] || "avatar-md"
 
   return (
     <div
-      className={`${sizeClass} ${className}`}
-      style={{ width: dimensions, height: dimensions, cursor: onClick ? "pointer" : "default" }}
+      className={`avatar ${sizeClass} ${className}`}
       onClick={onClick}
+      style={{ cursor: onClick ? "pointer" : "default" }}
     >
-      {avatarSrc ? (
-        <>
-          <img
-            src={avatarSrc || "/placeholder.svg"}
-            alt={`${user.username}'s avatar`}
-            className="w-100 h-100 rounded-circle"
-            style={{ objectFit: "cover" }}
-            onError={handleImageError}
-          />
-          <div className="avatar-fallback bg-primary rounded-circle d-none align-items-center justify-content-center w-100 h-100">
-            <span className="text-white fw-bold">{firstLetter}</span>
-          </div>
-        </>
+      {user?.avatar && !imageError ? (
+        <img src={user.avatar || "/placeholder.svg"} alt={user.username || "User"} onError={handleError} />
       ) : (
-        <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center w-100 h-100">
-          <span className="text-white fw-bold">{firstLetter}</span>
-        </div>
+        <span>{getInitials(user?.username)}</span>
       )}
     </div>
   )
-}
-
-UserAvatar.propTypes = {
-  user: PropTypes.shape({
-    username: PropTypes.string,
-    avatar: PropTypes.string,
-  }),
-  size: PropTypes.oneOf(["sm", "md", "lg", "xl"]),
-  className: PropTypes.string,
-  onClick: PropTypes.func,
 }
 
 export default UserAvatar

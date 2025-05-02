@@ -1,4 +1,6 @@
-const mongoose = require('mongoose');
+// Check if this model is properly registered
+// If the file exists, we'll just make sure the model registration is correct
+const mongoose = require("mongoose")
 
 const replySchema = new mongoose.Schema(
   {
@@ -9,20 +11,21 @@ const replySchema = new mongoose.Schema(
     },
     comment: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Comment',
+      ref: "Comment",
       required: true,
     },
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     image: {
       type: String,
-      default: '',
+      default: "",
     },
   },
-  { timestamps: true }
-);
+  { timestamps: true },
+)
 
-module.exports = mongoose.model('Reply', replySchema);
+// Only modify the export line if the file exists
+module.exports = mongoose.models.Reply || mongoose.model("Reply", replySchema)
