@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 "use client"
 
 import { useState, useEffect } from "react"
@@ -150,8 +151,11 @@ const DashboardStats = ({ stats }) => {
 
         <div className="col-md-4 mb-4">
           <div className="card border-0 shadow-sm h-100">
-            <div className="card-header bg-white py-3">
+            <div className="card-header bg-white py-3 d-flex justify-content-between align-items-center">
               <h5 className="card-title mb-0">Reports</h5>
+              <a href="/admin/reports" className="btn btn-sm btn-primary">
+                <i className="bi bi-flag-fill me-1"></i> Manage
+              </a>
             </div>
             <div className="card-body p-4">
               <div className="mb-4">
@@ -174,11 +178,11 @@ const DashboardStats = ({ stats }) => {
               <div className="mb-4">
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <h6 className="mb-0">Reviewed Reports</h6>
-                  <span className="badge bg-secondary">{stats?.reportCounts?.reviewed || 0}</span>
+                  <span className="badge bg-success">{stats?.reportCounts?.reviewed || 0}</span>
                 </div>
                 <div className="progress" style={{ height: "8px" }}>
                   <div
-                    className="progress-bar bg-secondary"
+                    className="progress-bar bg-success"
                     role="progressbar"
                     style={{ width: `${Math.min(100, (stats?.reportCounts?.reviewed || 0) * 5)}%` }}
                     aria-valuenow={stats?.reportCounts?.reviewed || 0}
@@ -187,6 +191,32 @@ const DashboardStats = ({ stats }) => {
                   ></div>
                 </div>
               </div>
+
+              <div className="mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <h6 className="mb-0">Dismissed Reports</h6>
+                  <span className="badge bg-secondary">{stats?.reportCounts?.dismissed || 0}</span>
+                </div>
+                <div className="progress" style={{ height: "8px" }}>
+                  <div
+                    className="progress-bar bg-secondary"
+                    role="progressbar"
+                    style={{ width: `${Math.min(100, (stats?.reportCounts?.dismissed || 0) * 5)}%` }}
+                    aria-valuenow={stats?.reportCounts?.dismissed || 0}
+                    aria-valuemin="0"
+                    aria-valuemax="20"
+                  ></div>
+                </div>
+              </div>
+
+              {stats?.reportCounts?.pending > 0 && (
+                <div className="d-grid">
+                  <a href="/admin/reports?status=pending" className="btn btn-warning">
+                    <i className="bi bi-exclamation-triangle me-1"></i> Review {stats.reportCounts.pending} Pending
+                    Reports
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>

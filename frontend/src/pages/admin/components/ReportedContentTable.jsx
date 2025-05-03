@@ -1,20 +1,37 @@
-/* eslint-disable react/prop-types */
 "use client"
 
+/* eslint-disable react/prop-types */
 import { useState } from "react"
-import UserAvatar from "../../../components/UserAvatar"
 
 const ReportedContentTable = ({ reports, loading, onAction }) => {
   const [expandedReportId, setExpandedReportId] = useState(null)
 
-  const toggleExpand = (reportId) => {
+  // Toggle report details
+  const toggleDetails = (reportId) => {
     setExpandedReportId(expandedReportId === reportId ? null : reportId)
   }
 
+  // Format date
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString()
+    const options = { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+    return new Date(dateString).toLocaleDateString(undefined, options)
   }
 
+  // Get content type badge
+  const getContentTypeBadge = (contentType) => {
+    switch (contentType) {
+      case "post":
+        return <span className="badge bg-primary">Post</span>
+      case "comment":
+        return <span className="badge bg-info">Comment</span>
+      case "reply":
+        return <span className="badge bg-secondary">Reply</span>
+      default:
+        return <span className="badge bg-dark">Unknown</span>
+    }
+  }
+
+  // Get status badge
   const getStatusBadge = (status) => {
     switch (status) {
       case "pending":
@@ -24,91 +41,26 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
       case "dismissed":
         return <span className="badge bg-secondary">Dismissed</span>
       default:
-        return <span className="badge bg-light text-dark">Unknown</span>
-    }
-  }
-
-  const getContentTypeBadge = (type) => {
-    switch (type) {
-      case "post":
-        return <span className="badge bg-primary">Post</span>
-      case "comment":
-        return <span className="badge bg-info">Comment</span>
-      case "reply":
-        return <span className="badge bg-dark">Reply</span>
-      default:
-        return <span className="badge bg-light text-dark">Unknown</span>
-    }
-  }
-
-  const renderContentPreview = (report) => {
-    if (!report.contentDetails || report.contentDetails.deleted) {
-      return <div className="alert alert-secondary">Content has been deleted</div>
-    }
-
-    switch (report.contentType) {
-      case "post":
-        return (
-          <div className="card">
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <h6 className="mb-0">{report.contentDetails.title}</h6>
-              <small>by {report.contentDetails.user?.username}</small>
-            </div>
-            <div className="card-body">
-              <p className="card-text">{report.contentDetails.content}</p>
-            </div>
-          </div>
-        )
-      case "comment":
-        return (
-          <div className="card">
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <h6 className="mb-0">Comment on: {report.contentDetails.post?.title}</h6>
-              <small>by {report.contentDetails.user?.username}</small>
-            </div>
-            <div className="card-body">
-              <p className="card-text">{report.contentDetails.content}</p>
-            </div>
-          </div>
-        )
-      case "reply":
-        return (
-          <div className="card">
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <h6 className="mb-0">Reply to comment</h6>
-              <small>by {report.contentDetails.user?.username}</small>
-            </div>
-            <div className="card-body">
-              <div className="mb-2">
-                <small className="text-muted">In response to:</small>
-                <p className="mb-0 ps-3 border-start border-2">{report.contentDetails.comment?.content}</p>
-              </div>
-              <p className="card-text">{report.contentDetails.content}</p>
-            </div>
-          </div>
-        )
-      default:
-        return <div className="alert alert-secondary">Unknown content type</div>
+        return <span className="badge bg-dark">Unknown</span>
     }
   }
 
   if (loading) {
     return (
-      <div className="text-center my-5">
+      <div className="text-center py-5">
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
-        <p className="mt-2">Loading reports...</p>
+        <p className="mt-3">Loading reports...</p>
       </div>
     )
   }
 
-  if (reports.length === 0) {
+  if (!reports || reports.length === 0) {
     return (
-      <div className="text-center my-5">
-        <i className="bi bi-check-circle-fill text-success" style={{ fontSize: "3rem" }}></i>
-        <h5 className="mt-3">No reports found</h5>
-        <p className="text-muted">There are no reports matching your current filters.</p>
+      <div className="alert alert-info">
+        <i className="bi bi-info-circle me-2"></i>
+        No reports found matching your criteria.
       </div>
     )
   }
@@ -119,12 +71,12 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
         <table className="table table-hover align-middle mb-0">
           <thead className="table-light">
             <tr>
-              <th>Type</th>
+              <th>Content Type</th>
               <th>Reported By</th>
               <th>Reason</th>
               <th>Date</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th className="text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -132,12 +84,7 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
               <>
                 <tr key={report._id} className={expandedReportId === report._id ? "table-active" : ""}>
                   <td>{getContentTypeBadge(report.contentType)}</td>
-                  <td>
-                    <div className="d-flex align-items-center">
-                      <UserAvatar user={report.reporter} size="sm" className="me-2" />
-                      {report.reporter?.username || "Unknown"}
-                    </div>
-                  </td>
+                  <td>{report.reportedBy?.username || "Anonymous"}</td>
                   <td>
                     <div className="text-truncate" style={{ maxWidth: "200px" }}>
                       {report.reason}
@@ -146,26 +93,28 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
                   <td>{formatDate(report.createdAt)}</td>
                   <td>{getStatusBadge(report.status)}</td>
                   <td>
-                    <div className="d-flex gap-1">
-                      <button className="btn btn-sm btn-outline-primary" onClick={() => toggleExpand(report._id)}>
-                        <i className={`bi bi-${expandedReportId === report._id ? "chevron-up" : "chevron-down"}`}></i>
+                    <div className="d-flex justify-content-center gap-2">
+                      <button
+                        className="btn btn-sm btn-outline-info"
+                        onClick={() => toggleDetails(report._id)}
+                        title="View Details"
+                      >
+                        <i className="bi bi-eye"></i>
                       </button>
+
                       {report.status === "pending" && (
                         <>
                           <button
-                            className="btn btn-sm btn-outline-success"
+                            className="btn btn-sm btn-success"
                             onClick={() => onAction(report._id, "dismiss")}
                             title="Dismiss Report"
                           >
-                            <i className="bi bi-check"></i>
+                            <i className="bi bi-check-lg"></i>
                           </button>
+
                           <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to delete this content?")) {
-                                onAction(report._id, "delete")
-                              }
-                            }}
+                            className="btn btn-sm btn-danger"
+                            onClick={() => onAction(report._id, "delete")}
                             title="Delete Content"
                           >
                             <i className="bi bi-trash"></i>
@@ -176,39 +125,62 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
                   </td>
                 </tr>
                 {expandedReportId === report._id && (
-                  <tr>
-                    <td colSpan="6" className="p-3 bg-light">
-                      <div className="mb-3">
-                        <h6 className="mb-2">Report Details</h6>
-                        <div className="row g-3">
-                          <div className="col-md-6">
-                            <div className="mb-2">
-                              <strong>Reported By:</strong>
-                              <div className="d-flex align-items-center">
-                                <UserAvatar user={report.reporter} size="sm" className="me-2" />
-                                {report.reporter?.username} ({report.reporter?.email})
+                  <tr className="table-light">
+                    <td colSpan="6" className="p-3">
+                      <div className="card border-0">
+                        <div className="card-body">
+                          <h6 className="card-subtitle mb-2 text-muted">Report Details</h6>
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <p className="mb-1">
+                                <strong>Reported Content:</strong>
+                              </p>
+                              <div className="p-2 bg-light rounded">
+                                {report.contentType === "post" && (
+                                  <>
+                                    <h6>{report.content?.title || "Title not available"}</h6>
+                                    <p>{report.content?.body || "Content not available"}</p>
+                                  </>
+                                )}
+                                {(report.contentType === "comment" || report.contentType === "reply") && (
+                                  <p>{report.content?.text || "Content not available"}</p>
+                                )}
                               </div>
                             </div>
-                            <div className="mb-2">
-                              <strong>Report Date:</strong> {formatDate(report.createdAt)}
+                            <div className="col-md-6">
+                              <p className="mb-1">
+                                <strong>Additional Information:</strong>
+                              </p>
+                              <ul className="list-group list-group-flush">
+                                <li className="list-group-item bg-transparent px-0">
+                                  <strong>Content Creator:</strong> {report.content?.user?.username || "Unknown"}
+                                </li>
+                                <li className="list-group-item bg-transparent px-0">
+                                  <strong>Report Reason:</strong> {report.reason}
+                                </li>
+                                <li className="list-group-item bg-transparent px-0">
+                                  <strong>Reported At:</strong> {formatDate(report.createdAt)}
+                                </li>
+                                {report.status !== "pending" && (
+                                  <li className="list-group-item bg-transparent px-0">
+                                    <strong>Reviewed At:</strong> {formatDate(report.reviewedAt)}
+                                  </li>
+                                )}
+                              </ul>
                             </div>
-                            {report.reviewedAt && (
-                              <div className="mb-2">
-                                <strong>Reviewed Date:</strong> {formatDate(report.reviewedAt)}
-                              </div>
-                            )}
                           </div>
-                          <div className="col-md-6">
-                            <div className="mb-2">
-                              <strong>Reason:</strong>
+
+                          {report.status === "pending" && (
+                            <div className="d-flex gap-2 justify-content-end">
+                              <button className="btn btn-success" onClick={() => onAction(report._id, "dismiss")}>
+                                <i className="bi bi-check-lg me-1"></i> Dismiss Report
+                              </button>
+                              <button className="btn btn-danger" onClick={() => onAction(report._id, "delete")}>
+                                <i className="bi bi-trash me-1"></i> Delete Content
+                              </button>
                             </div>
-                            <div className="p-2 bg-white rounded border">{report.reason}</div>
-                          </div>
+                          )}
                         </div>
-                      </div>
-                      <div>
-                        <h6 className="mb-2">Reported Content</h6>
-                        {renderContentPreview(report)}
                       </div>
                     </td>
                   </tr>

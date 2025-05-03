@@ -1,11 +1,10 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
 import AdminSidebar from "./components/AdminSidebar"
 import DashboardStats from "./components/DashboardStats"
-import { useAdminSocket, fetchPendingCount } from "../../hooks/useAdminSocket"
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap-icons/font/bootstrap-icons.css"
 import "./admin.css"
@@ -14,110 +13,150 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [notification, setNotification] = useState(null)
-  const navigate = useNavigate()
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
+  const [notifications, setNotifications] = useState([])
 
-  // Handle new post notification
-  const handleNewPost = useCallback((data) => {
-    setNotification({
-      type: "new-post",
-      message: `New post submitted: "${data.title}" by ${data.username}`,
-      timestamp: new Date(),
-    })
+  // Socket event handlers
+  const handleNewPost = (data) => {
+    // Add notification
+    setNotifications((prev) => [
+      {
+        id: Date.now(),
+        type: "new-post",
+        message: `New post submitted: "${data.title}" by ${data.username}`,
+        time: new Date(),
+      },
+      ...prev,
+    ])
+  }
 
-    // Refresh stats
+  const handlePostStatusChange = (data) => {
+    // Add notification
+    setNotifications((prev) => [
+      {
+        id: Date.now(),
+        type: "status-change",
+        message: `Post "${data.title}" by ${data.username} was ${data.newStatus}`,
+        time: new Date(),
+      },
+      ...prev,
+    ])
+  }
+
+  const handleNewReport = (data) => {
+    // Add notification
+    setNotifications((prev) => [
+      {
+        id: Date.now(),
+        type: "new-report",
+        message: `New ${data.contentType} report: "${data.reason.substring(0, 30)}..."`,
+        time: new Date(),
+      },
+      ...prev,
+    ])
+
+    // Refresh stats to update report counts
     fetchStats()
-  }, [])
-
-  // Handle post status change notification
-  const handlePostStatusChange = useCallback((data) => {
-    setNotification({
-      type: "status-change",
-      message: `Post "${data.title}" ${data.newStatus === "approved" ? "approved" : "rejected"}`,
-      timestamp: new Date(),
-    })
-
-    // Refresh stats
-    fetchStats()
-  }, [])
-
-  // Initialize admin socket
-  useAdminSocket(handleNewPost, handlePostStatusChange)
+  }
 
   // Fetch dashboard stats
-  const fetchStats = useCallback(async () => {
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) {
-      navigate("/admin/login")
-      return
-    }
-
+  const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+      const adminToken = sessionStorage.getItem("adminToken")
+      if (!adminToken) {
+        setError("Admin token not found")
+        setLoading(false)
+        return
+      }
+
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
+
+      // Fetch admin stats
+      const statsResponse = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         headers: {
           Authorization: `Bearer ${adminToken}`,
         },
       })
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Unauthorized, redirect to login
-          sessionStorage.removeItem("adminToken")
-          navigate("/admin/login")
-          return
-        }
-        throw new Error("Failed to fetch admin stats")
+      if (!statsResponse.ok) {
+        throw new Error(`Failed to fetch stats: ${statsResponse.status}`)
       }
 
-      const data = await response.json()
-      setStats(data)
+      const statsData = await statsResponse.json()
 
-      // Update pending count in session storage
-      sessionStorage.setItem("adminPendingCount", data.postCounts.pending.toString())
+      // Fetch report counts
+      const reportsResponse = await fetch(`${API_BASE_URL}/api/admin/reports/count`, {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      })
+
+      if (!reportsResponse.ok) {
+        throw new Error(`Failed to fetch report counts: ${reportsResponse.status}`)
+      }
+
+      const reportsData = await reportsResponse.json()
+
+      // Combine stats with report counts
+      setStats({
+        ...statsData,
+        reportCounts: reportsData.count,
+      })
+
+      setLoading(false)
     } catch (err) {
+      console.error("Error fetching admin stats:", err)
       setError(err.message)
-    } finally {
       setLoading(false)
     }
-  }, [API_BASE_URL, navigate])
+  }
 
   useEffect(() => {
-    // Check if admin is logged in
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) {
-      navigate("/admin/login")
-      return
-    }
-
-    // Fetch initial pending count
-    fetchPendingCount()
-
-    // Fetch dashboard stats
     fetchStats()
 
-    // Set up refresh interval (every 30 seconds)
-    const refreshInterval = setInterval(fetchStats, 30000)
+    // Set up refresh interval for stats
+    const statsInterval = setInterval(fetchStats, 60000) // Refresh every minute
 
-    return () => clearInterval(refreshInterval)
-  }, [fetchStats, navigate])
-
-  // Clear notification after 5 seconds
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null)
-      }, 5000)
-
-      return () => clearTimeout(timer)
+    return () => {
+      clearInterval(statsInterval)
     }
-  }, [notification])
+  }, [])
 
-  if (loading && !stats) {
+  if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center min-vh-100">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
+      <div className="admin-dashboard d-flex">
+        <AdminSidebar activePage="dashboard" />
+        <div className="admin-content flex-grow-1">
+          <div className="container-fluid py-4">
+            <div className="text-center my-5">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="mt-3">Loading dashboard data...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="admin-dashboard d-flex">
+        <AdminSidebar activePage="dashboard" />
+        <div className="admin-content flex-grow-1">
+          <div className="container-fluid py-4">
+            <div className="alert alert-danger">
+              <h4 className="alert-heading">Error Loading Dashboard</h4>
+              <p>{error}</p>
+              <hr />
+              <p className="mb-0">
+                Please try refreshing the page or{" "}
+                <Link to="/admin/login" className="alert-link">
+                  log in again
+                </Link>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -126,75 +165,16 @@ const AdminDashboard = () => {
   return (
     <div className="admin-dashboard d-flex">
       <AdminSidebar activePage="dashboard" />
-
       <div className="admin-content flex-grow-1">
-        {notification && (
-          <div
-            className={`alert ${notification.type === "new-post" ? "alert-info" : "alert-success"} alert-dismissible fade show m-3`}
-          >
-            <i className={`bi ${notification.type === "new-post" ? "bi-bell" : "bi-check-circle"} me-2`}></i>
-            {notification.message}
-            <button type="button" className="btn-close" onClick={() => setNotification(null)}></button>
+        <div className="container-fluid py-4">
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h1 className="h3 mb-0">Dashboard</h1>
+            <button className="btn btn-sm btn-outline-primary" onClick={fetchStats}>
+              <i className="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
           </div>
-        )}
 
-        <div className="container-fluid p-4">
-          {error ? (
-            <div className="alert alert-danger">{error}</div>
-          ) : (
-            <>
-              <h4 className="mb-4">Dashboard</h4>
-              <DashboardStats stats={stats} />
-
-              <div className="row mt-4">
-                <div className="col-12">
-                  <div className="card border-0 shadow-sm">
-                    <div className="card-header bg-white py-3">
-                      <h5 className="card-title mb-0">Recent Activity</h5>
-                    </div>
-                    <div className="card-body p-0">
-                      <ul className="list-group list-group-flush">
-                        {stats?.recentActivity?.map((activity, index) => (
-                          <li key={index} className="list-group-item border-0 py-3">
-                            <div className="d-flex align-items-center">
-                              <div className={`activity-icon ${activity.status}`}>
-                                {activity.status === "pending" && <i className="bi bi-hourglass-split"></i>}
-                                {activity.status === "approved" && <i className="bi bi-check-circle"></i>}
-                                {activity.status === "rejected" && <i className="bi bi-x-circle"></i>}
-                              </div>
-                              <div className="ms-3">
-                                <h6 className="mb-1 text-truncate" style={{ maxWidth: "200px" }}>
-                                  {activity.title}
-                                </h6>
-                                <div className="d-flex align-items-center">
-                                  <small className="text-muted">by {activity.user?.username || "Unknown"}</small>
-                                  <span className="mx-2">•</span>
-                                  <small className="text-muted">
-                                    {new Date(activity.createdAt).toLocaleDateString()}
-                                  </small>
-                                </div>
-                              </div>
-                              <span
-                                className={`ms-auto badge ${
-                                  activity.status === "pending"
-                                    ? "bg-warning"
-                                    : activity.status === "approved"
-                                      ? "bg-secondary"
-                                      : "bg-danger"
-                                }`}
-                              >
-                                {activity.status}
-                              </span>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+          <DashboardStats stats={stats} />
         </div>
       </div>
     </div>

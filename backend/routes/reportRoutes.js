@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const reportController = require("../controllers/reportController")
-const { auth } = require("../middlewares/authMiddleware")
+const auth = require("../middlewares/authMiddleware")
 const { adminAuth } = require("../middlewares/adminMiddleware")
 
 // User routes

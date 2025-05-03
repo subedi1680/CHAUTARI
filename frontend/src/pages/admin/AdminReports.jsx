@@ -1,202 +1,200 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client"
 
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useSearchParams } from "react-router-dom"
 import AdminSidebar from "./components/AdminSidebar"
 import ReportedContentTable from "./components/ReportedContentTable"
-import { useAdminSocket } from "../../hooks/useAdminSocket"
-import "bootstrap/dist/css/bootstrap.min.css"
-import "bootstrap-icons/font/bootstrap-icons.css"
+import useAdminSocket from "../../hooks/useAdminSocket"
 import "./admin.css"
 
 const AdminReports = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [filter, setFilter] = useState({ status: "pending", contentType: "all" })
-  const [notification, setNotification] = useState(null)
-  const navigate = useNavigate()
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
+  const [filters, setFilters] = useState({
+    status: searchParams.get("status") || "all",
+    contentType: searchParams.get("type") || "all",
+    sort: searchParams.get("sort") || "createdAt",
+  })
 
   // Handle new report notification
-  const handleNewReport = (data) => {
-    setNotification({
-      type: "new-report",
-      message: `New ${data.contentType} reported: ${data.reason}`,
-      timestamp: new Date(),
-    })
-
-    // Refresh reports if we're viewing pending reports
-    if (filter.status === "pending") {
-      fetchReports()
-    }
+  const handleNewReport = () => {
+    fetchReports()
   }
 
   // Initialize admin socket
   useAdminSocket(null, null, handleNewReport)
 
-  // Fetch reports based on filters
+  // Fetch reports with filters
   const fetchReports = async () => {
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) {
-      navigate("/admin/login")
-      return
-    }
-
     setLoading(true)
     try {
-      const queryParams = new URLSearchParams()
-      if (filter.status !== "all") queryParams.append("status", filter.status)
-      if (filter.contentType !== "all") queryParams.append("contentType", filter.contentType)
+      const adminToken = sessionStorage.getItem("adminToken")
+      if (!adminToken) {
+        setError("Admin token not found")
+        setLoading(false)
+        return
+      }
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/reports?${queryParams}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
+
+      // Build query string from filters
+      const queryParams = new URLSearchParams()
+      if (filters.status !== "all") {
+        queryParams.append("status", filters.status)
+      }
+      if (filters.contentType !== "all") {
+        queryParams.append("contentType", filters.contentType)
+      }
+      queryParams.append("sort", filters.sort)
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/reports?${queryParams.toString()}`, {
         headers: {
           Authorization: `Bearer ${adminToken}`,
         },
       })
 
       if (!response.ok) {
-        if (response.status === 401) {
-          sessionStorage.removeItem("adminToken")
-          navigate("/admin/login")
-          return
-        }
-        throw new Error("Failed to fetch reports")
+        throw new Error(`Failed to fetch reports: ${response.status}`)
       }
 
       const data = await response.json()
       setReports(data)
-
-      // Update report count in session storage
-      const pendingCount = data.filter((report) => report.status === "pending").length
-      sessionStorage.setItem("adminReportCount", pendingCount.toString())
+      setLoading(false)
     } catch (err) {
+      console.error("Error fetching reports:", err)
       setError(err.message)
-    } finally {
       setLoading(false)
     }
   }
 
-  // Handle report action (dismiss or delete content)
+  // Handle filter changes
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target
+    setFilters((prev) => ({ ...prev, [name]: value }))
+
+    // Update URL params
+    if (value === "all") {
+      searchParams.delete(name)
+    } else {
+      searchParams.set(name, value)
+    }
+    setSearchParams(searchParams)
+  }
+
+  // Handle report actions (dismiss or delete)
   const handleReportAction = async (reportId, action) => {
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) return
-
     try {
-      const status = action === "dismiss" ? "dismissed" : "reviewed"
+      const adminToken = sessionStorage.getItem("adminToken")
+      if (!adminToken) return
 
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
       const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${adminToken}`,
         },
-        body: JSON.stringify({
-          status,
-          action: action === "delete" ? "delete" : "retain",
-        }),
+        body: JSON.stringify({ action }),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update report")
+        throw new Error(`Failed to update report: ${response.status}`)
       }
 
-      // Update local state
-      setReports((prevReports) =>
-        prevReports.map((report) =>
-          report._id === reportId ? { ...report, status, reviewedAt: new Date().toISOString() } : report,
-        ),
-      )
-
-      // Show success notification
-      setNotification({
-        type: "success",
-        message:
-          action === "dismiss" ? "Report dismissed successfully" : "Content deleted and report marked as reviewed",
-        timestamp: new Date(),
-      })
-
-      // Refresh reports to get updated data
+      // Refresh reports list
       fetchReports()
     } catch (err) {
-      setError(err.message)
+      console.error(`Error ${action} report:`, err)
+      alert(`Failed to ${action} report. Please try again.`)
     }
   }
 
   useEffect(() => {
-    // Check if admin is logged in
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) {
-      navigate("/admin/login")
-      return
-    }
-
-    // Fetch reports
     fetchReports()
-  }, [filter, navigate])
+    // Set up refresh interval
+    const refreshInterval = setInterval(fetchReports, 60000) // Refresh every minute
 
-  // Clear notification after 5 seconds
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null)
-      }, 5000)
-
-      return () => clearTimeout(timer)
-    }
-  }, [notification])
+    return () => clearInterval(refreshInterval)
+  }, [filters])
 
   return (
     <div className="admin-dashboard d-flex">
       <AdminSidebar activePage="reports" />
-
       <div className="admin-content flex-grow-1">
-        {notification && (
-          <div
-            className={`alert ${notification.type === "new-report" ? "alert-info" : "alert-success"} alert-dismissible fade show m-3`}
-          >
-            <i className={`bi ${notification.type === "new-report" ? "bi-bell" : "bi-check-circle"} me-2`}></i>
-            {notification.message}
-            <button type="button" className="btn-close" onClick={() => setNotification(null)}></button>
-          </div>
-        )}
-
-        <div className="container-fluid p-4">
+        <div className="container-fluid py-4">
           <div className="d-flex justify-content-between align-items-center mb-4">
-            <h4 className="mb-0">Reported Content</h4>
-            <div className="d-flex gap-2">
-              <select
-                className="form-select form-select-sm"
-                value={filter.status}
-                onChange={(e) => setFilter((prev) => ({ ...prev, status: e.target.value }))}
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="reviewed">Reviewed</option>
-                <option value="dismissed">Dismissed</option>
-              </select>
-              <select
-                className="form-select form-select-sm"
-                value={filter.contentType}
-                onChange={(e) => setFilter((prev) => ({ ...prev, contentType: e.target.value }))}
-              >
-                <option value="all">All Types</option>
-                <option value="post">Posts</option>
-                <option value="comment">Comments</option>
-                <option value="reply">Replies</option>
-              </select>
-              <button className="btn btn-sm btn-outline-primary" onClick={fetchReports} title="Refresh">
-                <i className="bi bi-arrow-clockwise"></i>
-              </button>
+            <h1 className="h3 mb-0">Content Reports</h1>
+            <button className="btn btn-sm btn-outline-primary" onClick={fetchReports}>
+              <i className="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+          </div>
+
+          {error && (
+            <div className="alert alert-danger">
+              <h4 className="alert-heading">Error Loading Reports</h4>
+              <p>{error}</p>
+            </div>
+          )}
+
+          <div className="card border-0 shadow-sm mb-4">
+            <div className="card-body">
+              <div className="row g-3">
+                <div className="col-md-4">
+                  <label htmlFor="statusFilter" className="form-label">
+                    Status
+                  </label>
+                  <select
+                    id="statusFilter"
+                    name="status"
+                    className="form-select"
+                    value={filters.status}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="reviewed">Reviewed</option>
+                    <option value="dismissed">Dismissed</option>
+                  </select>
+                </div>
+                <div className="col-md-4">
+                  <label htmlFor="contentTypeFilter" className="form-label">
+                    Content Type
+                  </label>
+                  <select
+                    id="contentTypeFilter"
+                    name="contentType"
+                    className="form-select"
+                    value={filters.contentType}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="all">All Types</option>
+                    <option value="post">Posts</option>
+                    <option value="comment">Comments</option>
+                    <option value="reply">Replies</option>
+                  </select>
+                </div>
+                <div className="col-md-4">
+                  <label htmlFor="sortFilter" className="form-label">
+                    Sort By
+                  </label>
+                  <select
+                    id="sortFilter"
+                    name="sort"
+                    className="form-select"
+                    value={filters.sort}
+                    onChange={handleFilterChange}
+                  >
+                    <option value="createdAt">Newest First</option>
+                    <option value="-createdAt">Oldest First</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
-          {error ? (
-            <div className="alert alert-danger">{error}</div>
-          ) : (
-            <ReportedContentTable reports={reports} loading={loading} onAction={handleReportAction} />
-          )}
+          <ReportedContentTable reports={reports} loading={loading} onAction={handleReportAction} />
         </div>
       </div>
     </div>

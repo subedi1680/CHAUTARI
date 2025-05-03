@@ -4,50 +4,43 @@ const Comment = require("../models/Comment")
 const Reply = require("../models/Reply")
 const mongoose = require("mongoose")
 
-// Create a new report
-exports.createReport = async (req, res) => {
+// @desc    Create a new report
+// @route   POST /api/reports
+// @access  Private
+const createReport = async (req, res) => {
+  const { contentType, contentId, reason } = req.body
+
+  if (!contentType || !contentId || !reason) {
+    return res.status(400).json({ msg: "Please provide all required fields" })
+  }
+
   try {
-    const { contentType, contentId, reason } = req.body
-    const userId = req.user.id
-
-    if (!contentType || !contentId || !reason) {
-      return res.status(400).json({ msg: "Missing required fields" })
-    }
-
-    // Validate content type
-    if (!["post", "comment", "reply"].includes(contentType)) {
-      return res.status(400).json({ msg: "Invalid content type" })
-    }
-
-    // Check if content exists
-    let content
+    // Check if the content exists
+    let contentModel
     switch (contentType) {
       case "post":
-        content = await Post.findById(contentId)
+        contentModel = Post
         break
       case "comment":
-        content = await Comment.findById(contentId)
+        contentModel = Comment
         break
       case "reply":
-        content = await Reply.findById(contentId)
+        contentModel = Reply
         break
+      default:
+        return res.status(400).json({ msg: "Invalid content type" })
     }
 
+    const content = await contentModel.findById(contentId)
     if (!content) {
       return res.status(404).json({ msg: "Content not found" })
-    }
-
-    // Check if user is reporting their own content
-    if (content.user.toString() === userId) {
-      return res.status(400).json({ msg: "You cannot report your own content" })
     }
 
     // Check if user has already reported this content
     const existingReport = await Report.findOne({
       contentType,
       contentId,
-      reporter: userId,
-      status: { $ne: "dismissed" }, // Allow re-reporting if previous report was dismissed
+      reporter: req.user.id,
     })
 
     if (existingReport) {
@@ -55,35 +48,38 @@ exports.createReport = async (req, res) => {
     }
 
     // Create new report
-    const newReport = new Report({
+    const report = new Report({
       contentType,
       contentId,
-      reporter: userId,
+      reporter: req.user.id,
       reason,
     })
 
-    await newReport.save()
+    await report.save()
 
-    // Notify admins about new report (via socket)
-    if (req.app.get("io")) {
-      req.app.get("io").to("admins").emit("newReport", {
-        reportId: newReport._id,
+    // Notify admins via socket.io
+    const io = req.app.get("io")
+    if (io) {
+      io.to("admins").emit("newReport", {
+        reportId: report._id,
         contentType,
         reason,
       })
     }
 
-    res.status(201).json({ msg: "Content reported successfully" })
+    res.status(201).json({ msg: "Report submitted successfully", report })
   } catch (err) {
-    console.error("Error creating report:", err)
+    console.error("Error creating report:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
 }
 
-// Get all reports (admin only)
-exports.getAllReports = async (req, res) => {
+// @desc    Get all reports (with filters)
+// @route   GET /api/admin/reports
+// @access  Private (Admin only)
+const getAllReports = async (req, res) => {
   try {
-    const { status, contentType } = req.query
+    const { status, contentType, sort = "createdAt" } = req.query
     const query = {}
 
     // Apply filters if provided
@@ -95,112 +91,188 @@ exports.getAllReports = async (req, res) => {
       query.contentType = contentType
     }
 
-    // Get reports with populated data
-    const reports = await Report.find(query)
-      .populate("reporter", "username email")
-      .populate("reviewedBy", "email")
-      .sort({ createdAt: -1 })
+    // Sort direction
+    const sortDirection = sort.startsWith("-") ? -1 : 1
+    const sortField = sort.startsWith("-") ? sort.substring(1) : sort
 
-    // Populate content details based on contentType
-    const populatedReports = await Promise.all(
+    // Get reports with populated reporter
+    const reports = await Report.find(query)
+      .populate("reporter", "username email avatar")
+      .sort({ [sortField]: sortDirection })
+
+    // Fetch content details for each report
+    const reportsWithDetails = await Promise.all(
       reports.map(async (report) => {
         const reportObj = report.toObject()
 
         try {
-          let contentDetails
-
+          let contentModel
           switch (report.contentType) {
             case "post":
-              contentDetails = await Post.findById(report.contentId)
-                .populate("user", "username email")
-                .select("title content user createdAt")
+              contentModel = Post
               break
             case "comment":
-              contentDetails = await Comment.findById(report.contentId)
-                .populate("user", "username email")
-                .populate("post", "title")
-                .select("content user post createdAt")
+              contentModel = Comment
               break
             case "reply":
-              contentDetails = await Reply.findById(report.contentId)
-                .populate("user", "username email")
-                .populate("comment", "content")
-                .select("content user comment createdAt")
+              contentModel = Reply
               break
           }
 
-          reportObj.contentDetails = contentDetails || { deleted: true }
+          const content = await contentModel.findById(report.contentId)
+
+          if (content) {
+            // Populate user for the content
+            if (report.contentType === "post") {
+              await content.populate("user", "username email avatar")
+              reportObj.contentDetails = {
+                title: content.title,
+                content: content.content,
+                user: content.user,
+              }
+            } else if (report.contentType === "comment") {
+              await content.populate("user", "username email avatar")
+              await content.populate("post", "title")
+              reportObj.contentDetails = {
+                content: content.content,
+                user: content.user,
+                post: content.post,
+              }
+            } else if (report.contentType === "reply") {
+              await content.populate("user", "username email avatar")
+              await content.populate("comment", "content")
+              reportObj.contentDetails = {
+                content: content.content,
+                user: content.user,
+                comment: content.comment,
+              }
+            }
+          } else {
+            reportObj.contentDetails = { deleted: true }
+          }
         } catch (err) {
-          reportObj.contentDetails = { deleted: true }
+          console.error(`Error fetching content for report ${report._id}:`, err.message)
+          reportObj.contentDetails = { error: true }
         }
 
         return reportObj
       }),
     )
 
-    res.json(populatedReports)
+    res.json(reportsWithDetails)
   } catch (err) {
-    console.error("Error fetching reports:", err)
+    console.error("Error fetching reports:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
 }
 
-// Get report count (admin only)
-exports.getReportCount = async (req, res) => {
+// @desc    Get report count by status
+// @route   GET /api/admin/reports/count
+// @access  Private (Admin only)
+const getReportCount = async (req, res) => {
   try {
-    const count = await Report.countDocuments({ status: "pending" })
-    res.json({ count })
-  } catch (err) {
-    console.error("Error fetching report count:", err)
-    res.status(500).json({ msg: "Server Error" })
-  }
-}
+    const counts = await Report.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+    ])
 
-// Update report status (admin only)
-exports.updateReportStatus = async (req, res) => {
-  try {
-    const { id } = req.params
-    const { status, action } = req.body
-    const adminId = req.admin.id
-
-    if (!status || !["reviewed", "dismissed"].includes(status)) {
-      return res.status(400).json({ msg: "Invalid status" })
+    // Convert to object with status as keys
+    const countObj = {
+      pending: 0,
+      reviewed: 0,
+      dismissed: 0,
     }
 
-    const report = await Report.findById(id)
+    counts.forEach((item) => {
+      countObj[item._id] = item.count
+    })
+
+    // Calculate total
+    countObj.total = countObj.pending + countObj.reviewed + countObj.dismissed
+
+    res.json({ count: countObj })
+  } catch (err) {
+    console.error("Error fetching report count:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
+// @desc    Update report status
+// @route   PUT /api/admin/reports/:id
+// @access  Private (Admin only)
+const updateReportStatus = async (req, res) => {
+  const { status, action } = req.body
+
+  if (!status && !action) {
+    return res.status(400).json({ msg: "Please provide status or action" })
+  }
+
+  try {
+    const report = await Report.findById(req.params.id)
+
     if (!report) {
       return res.status(404).json({ msg: "Report not found" })
     }
 
-    // Update report status
-    report.status = status
-    report.reviewedBy = adminId
-    report.reviewedAt = Date.now()
-    await report.save()
+    // Handle actions
+    if (action) {
+      switch (action) {
+        case "dismiss":
+          report.status = "dismissed"
+          break
+        case "delete":
+          // Delete the reported content
+          let contentModel
+          switch (report.contentType) {
+            case "post":
+              contentModel = Post
+              break
+            case "comment":
+              contentModel = Comment
+              break
+            case "reply":
+              contentModel = Reply
+              break
+          }
 
-    // If action is "delete" and status is "reviewed", delete the reported content
-    if (action === "delete" && status === "reviewed") {
-      try {
-        switch (report.contentType) {
-          case "post":
-            await Post.findByIdAndDelete(report.contentId)
-            break
-          case "comment":
-            await Comment.findByIdAndDelete(report.contentId)
-            break
-          case "reply":
-            await Reply.findByIdAndDelete(report.contentId)
-            break
-        }
-      } catch (deleteErr) {
-        console.error("Error deleting reported content:", deleteErr)
-        // Continue execution even if deletion fails
+          const content = await contentModel.findById(report.contentId)
+          if (content) {
+            await content.deleteOne()
+          }
+
+          report.status = "reviewed"
+          break
+        default:
+          return res.status(400).json({ msg: "Invalid action" })
       }
+    } else if (status) {
+      // Direct status update
+      if (!["pending", "reviewed", "dismissed"].includes(status)) {
+        return res.status(400).json({ msg: "Invalid status" })
+      }
+      report.status = status
     }
 
-    res.json({ msg: "Report updated successfully" })
+    // Update review information
+    report.reviewedBy = req.admin.id
+    report.reviewedAt = Date.now()
+
+    await report.save()
+
+    res.json({ msg: "Report updated successfully", report })
   } catch (err) {
-    console.error("Error updating report:", err)
+    console.error("Error updating report:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
+}
+
+module.exports = {
+  createReport,
+  getAllReports,
+  getReportCount,
+  updateReportStatus,
 }
