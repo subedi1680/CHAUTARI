@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
-import Select from "react-select"
-import UserAvatar from "../components/UserAvatar" // Add UserAvatar import
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import Select from "react-select";
+import UserAvatar from "../components/UserAvatar"; // Add UserAvatar import
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Updated category options based on our new category structure
 const categoryOptions = [
@@ -89,106 +89,135 @@ const categoryOptions = [
   { value: "Music Reviews", label: "Music Reviews" },
   { value: "Books & Comics", label: "Books & Comics" },
   { value: "Celebrity News", label: "Celebrity News" },
-]
+];
 
 const EditPost = () => {
-  const { postId } = useParams()
-  const navigate = useNavigate()
+  const { postId } = useParams();
+  const navigate = useNavigate();
 
   const [post, setPost] = useState({
     title: "",
     content: "",
     category: "",
     coverImage: "",
-  })
-  const [error, setError] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [newImage, setNewImage] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
+  });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newImage, setNewImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [userCategories, setUserCategories] = useState([]);
+
+  // Fetch user categories and post details when the component mounts
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = sessionStorage.getItem("token");
+        const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          setUserCategories(userData.categories || []);
+        }
+      } catch (err) {
+        console.error("Error fetching user categories:", err);
+      }
+    };
+
+    fetchUserData();
+  }, []);
 
   // Fetch post details when the component mounts
   useEffect(() => {
     if (!postId || postId === "undefined") {
-      setError("Invalid Post ID")
-      setLoading(false)
-      return
+      setError("Invalid Post ID");
+      setLoading(false);
+      return;
     }
 
     const fetchPost = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`)
-        if (!response.ok) throw new Error("Failed to fetch post")
+        const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`);
+        if (!response.ok) throw new Error("Failed to fetch post");
 
-        const data = await response.json()
+        const data = await response.json();
         setPost({
           title: data.title,
           content: data.content,
           category: data.category,
           coverImage: data.coverImage,
-        })
+        });
 
-        setImagePreview(data.coverImage ? `data:image/jpeg;base64,${data.coverImage}` : null)
+        setImagePreview(
+          data.coverImage ? `data:image/jpeg;base64,${data.coverImage}` : null
+        );
       } catch (err) {
-        setError(err.message)
+        setError(err.message);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchPost()
-  }, [postId])
+    fetchPost();
+  }, [postId]);
 
   // Handle input change for form fields
   const handleChange = (e) => {
-    setPost({ ...post, [e.target.name]: e.target.value })
-  }
+    setPost({ ...post, [e.target.name]: e.target.value });
+  };
 
   // Handle image change (for preview and upload)
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files[0];
     if (file) {
-      setNewImage(file)
-      setImagePreview(URL.createObjectURL(file))
+      setNewImage(file);
+      setImagePreview(URL.createObjectURL(file));
     }
-  }
+  };
 
   // Handle form submission for post update
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
 
     try {
-      const token = sessionStorage.getItem("token")
-      if (!token) throw new Error("You must be logged in to edit a post.")
+      const token = sessionStorage.getItem("token");
+      if (!token) throw new Error("You must be logged in to edit a post.");
 
-      const formData = new FormData()
-      formData.append("title", post.title)
-      formData.append("category", post.category)
-      formData.append("content", post.content)
-      if (newImage) formData.append("coverImage", newImage)
+      const formData = new FormData();
+      formData.append("title", post.title);
+      formData.append("category", post.category);
+      formData.append("content", post.content);
+      if (newImage) formData.append("coverImage", newImage);
 
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
-      })
+      });
 
       if (!response.ok) {
-        const errorMsg = await response.text()
-        throw new Error(`Failed to update post: ${errorMsg}`)
+        const errorMsg = await response.text();
+        throw new Error(`Failed to update post: ${errorMsg}`);
       }
 
-      alert("Post updated successfully!")
-      navigate(`/post/${postId}`)
+      alert("Post updated successfully!");
+      navigate(`/post/${postId}`);
     } catch (err) {
-      console.error("Error updating post:", err)
-      setError(err.message)
+      console.error("Error updating post:", err);
+      setError(err.message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
+
+  // Generate category options from user's categories
+  const userCategoryOptions = userCategories.map((category) => ({
+    value: category,
+    label: category,
+  }));
 
   return (
     <div className="container-fluid bg-light min-vh-100 d-flex align-items-center justify-content-center py-5">
@@ -245,13 +274,21 @@ const EditPost = () => {
                       <span className="input-group-text bg-light">
                         <i className="bi bi-tag"></i>
                       </span>
-                      <div className="form-control p-0" style={{ overflow: "hidden" }}>
+                      <div
+                        className="form-control p-0"
+                        style={{ overflow: "visible" }}
+                      >
                         <Select
-                          options={categoryOptions}
-                          value={categoryOptions.find((option) => option.value === post.category)}
-                          onChange={(selectedOption) => setPost({ ...post, category: selectedOption.value })}
+                          options={userCategoryOptions}
+                          value={userCategoryOptions.find(
+                            (option) => option.value === post.category
+                          )}
+                          onChange={(selectedOption) =>
+                            setPost({ ...post, category: selectedOption.value })
+                          }
                           placeholder="Select a category"
                           required
+                          menuPortalTarget={document.body}
                           styles={{
                             control: (provided) => ({
                               ...provided,
@@ -266,6 +303,7 @@ const EditPost = () => {
                               display: "flex",
                               alignItems: "center",
                             }),
+                            menuPortal: (base) => ({ ...base, zIndex: 9999 }),
                           }}
                         />
                       </div>
@@ -332,7 +370,11 @@ const EditPost = () => {
                     >
                       Cancel
                     </button>
-                    <button type="submit" className="btn btn-primary rounded-pill px-4" disabled={saving}>
+                    <button
+                      type="submit"
+                      className="btn btn-primary rounded-pill px-4"
+                      disabled={saving}
+                    >
                       {saving ? (
                         <>
                           <span
@@ -354,7 +396,7 @@ const EditPost = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default EditPost
+export default EditPost;

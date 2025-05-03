@@ -1,25 +1,25 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
-"use client"
+"use client";
 
-import "bootstrap/dist/css/bootstrap.min.css"
-import "bootstrap-icons/font/bootstrap-icons.css"
-import { useState, useEffect, useContext } from "react"
-import { useNavigate } from "react-router-dom"
-import { io } from "socket.io-client"
-import { categoryStructure } from "../utils/categoryData"
-import "./Home.css"
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
+import { useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
+import { categoryStructure } from "../utils/categoryData";
+import "./Home.css";
 
 // Add these imports at the top of the file, after the existing imports
-import "bootstrap/dist/js/bootstrap.bundle.min.js"
-import UserAvatar from "../components/UserAvatar"
-import UserContext from "../components/UserContext"
+import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import UserAvatar from "../components/UserAvatar";
+import UserContext from "../components/UserContext";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const formatTimeAgo = (dateString) => {
-  const date = new Date(dateString)
-  const seconds = Math.floor((new Date() - date) / 1000)
+  const date = new Date(dateString);
+  const seconds = Math.floor((new Date() - date) / 1000);
 
   const intervals = [
     { label: "year", seconds: 31536000 },
@@ -28,159 +28,175 @@ const formatTimeAgo = (dateString) => {
     { label: "hour", seconds: 3600 },
     { label: "minute", seconds: 60 },
     { label: "second", seconds: 1 },
-  ]
+  ];
 
   for (const interval of intervals) {
-    const count = Math.floor(seconds / interval.seconds)
+    const count = Math.floor(seconds / interval.seconds);
     if (count > 0) {
-      return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`
+      return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`;
     }
   }
-  return "just now"
-}
+  return "just now";
+};
 
 function HomePage() {
-  const [activeTab, setActiveTab] = useState("feed") // "feed" or "myPosts" or "profile"
-  const [posts, setPosts] = useState([])
-  const [myPosts, setMyPosts] = useState([])
-  const [userProfile, setUserProfile] = useState(null)
-  const [selectedCategories, setSelectedCategories] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [editingCategories, setEditingCategories] = useState(false)
-  const [availableCategories, setAvailableCategories] = useState([])
-  const [tempSelectedCategories, setTempSelectedCategories] = useState([])
-  const [savingCategories, setSavingCategories] = useState(false)
-  const navigate = useNavigate()
-  const { userAvatar } = useContext(UserContext)
-  const [error, setError] = useState(null)
+  const [activeTab, setActiveTab] = useState("feed"); // "feed" or "myPosts" or "profile"
+  const [posts, setPosts] = useState([]);
+  const [myPosts, setMyPosts] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [editingCategories, setEditingCategories] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [tempSelectedCategories, setTempSelectedCategories] = useState([]);
+  const [savingCategories, setSavingCategories] = useState(false);
+  const navigate = useNavigate();
+  const { userAvatar } = useContext(UserContext);
+  const [error, setError] = useState(null);
 
-  const token = sessionStorage.getItem("token")
-  const userId = sessionStorage.getItem("userId")
+  const token = sessionStorage.getItem("token");
+  const userId = sessionStorage.getItem("userId");
 
   useEffect(() => {
     // Fetch user categories on page load
     const fetchData = async () => {
       if (userId && token) {
         try {
-          setLoading(true)
+          setLoading(true);
           const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },
-          })
+          });
           if (response.ok) {
-            const userData = await response.json()
-            setUserProfile(userData)
-            setSelectedCategories(userData.categories || [])
-            setTempSelectedCategories(userData.categories || [])
-            sessionStorage.setItem("username", userData.username || "")
+            const userData = await response.json();
+            setUserProfile(userData);
+            setSelectedCategories(userData.categories || []);
+            setTempSelectedCategories(userData.categories || []);
+            sessionStorage.setItem("username", userData.username || "");
 
             // Now fetch posts after categories are loaded
-            fetchPosts()
-            const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
+            fetchPosts();
+            const postsResponse = await fetch(`${API_BASE_URL}/api/posts`);
             if (!postsResponse.ok) {
-              throw new Error("Failed to fetch posts")
+              throw new Error("Failed to fetch posts");
             }
-            const postsData = await postsResponse.json()
+            const postsData = await postsResponse.json();
             if (!Array.isArray(postsData)) {
-              throw new Error("Invalid response format from server")
+              throw new Error("Invalid response format from server");
             }
 
             // Filter posts based on selected categories
             const filteredPosts =
               userData.categories && userData.categories.length > 0
-                ? postsData.filter((post) => userData.categories.includes(post.category))
-                : postsData
+                ? postsData.filter((post) =>
+                    userData.categories.includes(post.category)
+                  )
+                : postsData;
 
             // Also filter out the user's own posts for the "My Posts" tab
-            const userPosts = postsData.filter((post) => post.user?._id === userId)
+            const userPosts = postsData.filter(
+              (post) => post.user?._id === userId
+            );
 
-            const sortedPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            const sortedMyPosts = userPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            const sortedPosts = filteredPosts.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+            );
+            const sortedMyPosts = userPosts.sort(
+              (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+            );
 
-            setPosts(sortedPosts)
-            setMyPosts(sortedMyPosts)
+            setPosts(sortedPosts);
+            setMyPosts(sortedMyPosts);
           }
         } catch (err) {
-          console.error("Error fetching data:", err)
+          console.error("Error fetching data:", err);
         } finally {
-          setLoading(false)
+          setLoading(false);
         }
       } else {
         // If not logged in, just fetch all posts
-        fetchAllPosts()
+        fetchAllPosts();
       }
-    }
+    };
 
     const fetchAllPosts = async () => {
       try {
-        setLoading(true)
-        const response = await fetch(`${API_BASE_URL}/api/posts`)
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/posts`);
         if (!response.ok) {
-          throw new Error("Failed to fetch posts")
+          throw new Error("Failed to fetch posts");
         }
-        const data = await response.json()
+        const data = await response.json();
         if (!Array.isArray(data)) {
-          throw new Error("Invalid response format from server")
+          throw new Error("Invalid response format from server");
         }
 
-        const sortedPosts = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        setPosts(sortedPosts)
+        const sortedPosts = data.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setPosts(sortedPosts);
       } catch (err) {
-        console.error("Failed to fetch posts:", err)
+        console.error("Failed to fetch posts:", err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchData()
+    fetchData();
 
     // Prepare available categories from categoryStructure
-    const allCategories = []
+    const allCategories = [];
     categoryStructure.forEach((category) => {
-      allCategories.push(category.name)
+      allCategories.push(category.name);
       category.similar.forEach((subCategory) => {
-        allCategories.push(subCategory)
-      })
-    })
-    setAvailableCategories(allCategories)
+        allCategories.push(subCategory);
+      });
+    });
+    setAvailableCategories(allCategories);
 
     // Socket listener for real-time updates
-    const socket = io(API_BASE_URL, { withCredentials: true })
+    const socket = io(API_BASE_URL, { withCredentials: true });
 
     socket.on("commentCountUpdated", ({ postId, action }) => {
       setPosts((prevPosts) =>
         prevPosts.map((post) => {
           if (post._id === postId) {
-            let updatedCount = post.commentCount || 0
-            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
-            return { ...post, commentCount: updatedCount }
+            let updatedCount = post.commentCount || 0;
+            updatedCount =
+              action === "add"
+                ? updatedCount + 1
+                : Math.max(0, updatedCount - 1);
+            return { ...post, commentCount: updatedCount };
           }
-          return post
-        }),
-      )
+          return post;
+        })
+      );
 
       setMyPosts((prevPosts) =>
         prevPosts.map((post) => {
           if (post._id === postId) {
-            let updatedCount = post.commentCount || 0
-            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
-            return { ...post, commentCount: updatedCount }
+            let updatedCount = post.commentCount || 0;
+            updatedCount =
+              action === "add"
+                ? updatedCount + 1
+                : Math.max(0, updatedCount - 1);
+            return { ...post, commentCount: updatedCount };
           }
-          return post
-        }),
-      )
-    })
+          return post;
+        })
+      );
+    });
 
     socket.on("postReaction", ({ postId, likes, dislikes }) => {
-      updateReactions(postId, { likes, dislikes })
-    })
+      updateReactions(postId, { likes, dislikes });
+    });
 
     return () => {
-      socket.disconnect()
-    }
-  }, [token, userId])
+      socket.disconnect();
+    };
+  }, [token, userId]);
 
   // Add useEffect to listen for avatar updates
   useEffect(() => {
@@ -196,11 +212,11 @@ function HomePage() {
                 ...post.user,
                 avatar: event.detail.avatar,
               },
-            }
+            };
           }
-          return post
-        }),
-      )
+          return post;
+        })
+      );
 
       // Update avatar in myPosts
       setMyPosts((prev) =>
@@ -212,11 +228,11 @@ function HomePage() {
                 ...post.user,
                 avatar: event.detail.avatar,
               },
-            }
+            };
           }
-          return post
-        }),
-      )
+          return post;
+        })
+      );
 
       // Update userProfile avatar
       setUserProfile((prev) => {
@@ -224,18 +240,18 @@ function HomePage() {
           return {
             ...prev,
             avatar: event.detail.avatar,
-          }
+          };
         }
-        return prev
-      })
-    }
+        return prev;
+      });
+    };
 
-    window.addEventListener("avatarUpdated", handleAvatarUpdate)
+    window.addEventListener("avatarUpdated", handleAvatarUpdate);
 
     return () => {
-      window.removeEventListener("avatarUpdated", handleAvatarUpdate)
-    }
-  }, [userId])
+      window.removeEventListener("avatarUpdated", handleAvatarUpdate);
+    };
+  }, [userId]);
 
   const updateReactions = (postId, updatedData) => {
     // Update reactions in both post lists
@@ -247,9 +263,9 @@ function HomePage() {
               likes: updatedData.likes,
               dislikes: updatedData.dislikes,
             }
-          : post,
-      ),
-    )
+          : post
+      )
+    );
 
     setMyPosts((prevPosts) =>
       prevPosts.map((post) =>
@@ -259,116 +275,119 @@ function HomePage() {
               likes: updatedData.likes,
               dislikes: updatedData.dislikes,
             }
-          : post,
-      ),
-    )
-  }
+          : post
+      )
+    );
+  };
 
   const handlePostClick = (postId) => {
     if (!postId || postId === "undefined") {
-      console.error("Invalid postId:", postId)
-      return
+      console.error("Invalid postId:", postId);
+      return;
     }
-    navigate(`/post/${postId}`)
-  }
+    navigate(`/post/${postId}`);
+  };
 
   const handleLike = async (postId, e) => {
-    e.stopPropagation()
+    e.stopPropagation();
     try {
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
-      if (!res.ok) throw new Error("Failed to like post")
-      const updatedPost = await res.json()
-      updateReactions(postId, updatedPost)
+      });
+      if (!res.ok) throw new Error("Failed to like post");
+      const updatedPost = await res.json();
+      updateReactions(postId, updatedPost);
     } catch (err) {
-      console.error(err)
+      console.error(err);
     }
-  }
+  };
 
   const handleDislike = async (postId, e) => {
-    e.stopPropagation()
+    e.stopPropagation();
     try {
       const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
-      if (!res.ok) throw new Error("Failed to dislike post")
-      const updatedPost = await res.json()
-      updateReactions(postId, updatedPost)
+      });
+      if (!res.ok) throw new Error("Failed to dislike post");
+      const updatedPost = await res.json();
+      updateReactions(postId, updatedPost);
     } catch (err) {
-      console.error(err)
+      console.error(err);
     }
-  }
+  };
 
   // Filter posts based on category
   const getFilteredPosts = () => {
-    const postsToFilter = activeTab === "feed" ? posts : myPosts
-    if (categoryFilter === "all") return postsToFilter
-    return postsToFilter.filter((post) => post.category === categoryFilter)
-  }
+    const postsToFilter = activeTab === "feed" ? posts : myPosts;
+    if (categoryFilter === "all") return postsToFilter;
+    return postsToFilter.filter((post) => post.category === categoryFilter);
+  };
 
   // Get unique categories from posts
   const getUniqueCategories = () => {
-    const allPosts = [...posts, ...myPosts]
-    const categories = allPosts.map((post) => post.category)
-    return ["all", ...new Set(categories)].filter(Boolean)
-  }
+    const allPosts = [...posts, ...myPosts];
+    const categories = allPosts.map((post) => post.category);
+    return ["all", ...new Set(categories)].filter(Boolean);
+  };
 
   // Toggle category selection in edit mode
   const toggleCategorySelection = (category) => {
     setTempSelectedCategories((prev) => {
       if (prev.includes(category)) {
-        return prev.filter((cat) => cat !== category)
+        return prev.filter((cat) => cat !== category);
       } else {
-        return [...prev, category]
+        return [...prev, category];
       }
-    })
-  }
+    });
+  };
 
   // Save updated categories
   const saveCategories = async () => {
-    if (!userId || !token) return
+    if (!userId || !token) return;
 
-    setSavingCategories(true)
+    setSavingCategories(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ categories: tempSelectedCategories }),
-      })
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${userId}/categories`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ categories: tempSelectedCategories }),
+        }
+      );
 
       if (response.ok) {
-        setSelectedCategories(tempSelectedCategories)
-        setEditingCategories(false)
+        setSelectedCategories(tempSelectedCategories);
+        setEditingCategories(false);
         // Update user profile with new categories
         setUserProfile((prev) => ({
           ...prev,
           categories: tempSelectedCategories,
-        }))
+        }));
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || "Failed to update categories")
+        const errorData = await response.json();
+        throw new Error(errorData.msg || "Failed to update categories");
       }
     } catch (err) {
-      console.error("Failed to save categories:", err)
-      alert("Failed to save your categories. Please try again.")
+      console.error("Failed to save categories:", err);
+      alert("Failed to save your categories. Please try again.");
     } finally {
-      setSavingCategories(false)
+      setSavingCategories(false);
     }
-  }
+  };
 
   // Function to render post cards
   const renderPostCards = () => {
-    const filteredPosts = getFilteredPosts()
+    const filteredPosts = getFilteredPosts();
 
     if (loading) {
       return (
@@ -377,22 +396,30 @@ function HomePage() {
             <span className="visually-hidden">Loading...</span>
           </div>
         </div>
-      )
+      );
     }
 
     if (filteredPosts.length === 0) {
       return (
         <div className="text-center my-5 py-5">
           <div className="mb-4">
-            <i className="bi bi-journal-text text-secondary" style={{ fontSize: "4rem" }}></i>
+            <i
+              className="bi bi-journal-text text-secondary"
+              style={{ fontSize: "4rem" }}
+            ></i>
           </div>
           <h4 className="text-secondary">No posts available</h4>
-          <p className="text-muted">Be the first to create a post in this category!</p>
-          <button className="btn btn-secondary mt-2" onClick={() => navigate("/create-post")}>
+          <p className="text-muted">
+            Be the first to create a post in this category!
+          </p>
+          <button
+            className="btn btn-secondary mt-2"
+            onClick={() => navigate("/create-post")}
+          >
             Create a Post
           </button>
         </div>
-      )
+      );
     }
 
     return filteredPosts.map((post) => (
@@ -403,7 +430,10 @@ function HomePage() {
         style={{ cursor: "pointer" }}
       >
         {post.coverImage && (
-          <div className="position-relative overflow-hidden" style={{ height: "200px" }}>
+          <div
+            className="position-relative overflow-hidden"
+            style={{ height: "200px" }}
+          >
             <img
               src={`data:image/jpeg;base64,${post.coverImage}`}
               alt="Post Cover"
@@ -414,18 +444,36 @@ function HomePage() {
         )}
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-2">
-            <span className="badge bg-primary rounded-pill px-3 py-2">{post.category || "Uncategorized"}</span>
+            <span className="badge bg-primary rounded-pill px-3 py-2">
+              {post.category || "Uncategorized"}
+            </span>
+            {post.status === "pending" && (
+              <span className="badge bg-warning rounded-pill px-3 py-2">
+                <i className="bi bi-hourglass-split me-1"></i>
+                Pending Review
+              </span>
+            )}
+            {post.status === "rejected" && (
+              <span className="badge bg-danger rounded-pill px-3 py-2">
+                <i className="bi bi-x-circle me-1"></i>
+                Rejected
+              </span>
+            )}
           </div>
           <h5 className="card-title mb-1">{post.title}</h5>
 
-          {/* Update the post card rendering to use UserAvatar component */}
-          {/* Replace the existing avatar div with UserAvatar component */}
           <div className="d-flex align-items-center mb-4">
             <UserAvatar user={post.user} size="sm" className="me-2" />
             <div>
-              <p className="mb-0 fw-medium">{post.user?.username || "Unknown User"}</p>
-              <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
-              {post.edited && <small className="text-muted ms-2">(edited)</small>}
+              <p className="mb-0 fw-medium">
+                {post.user?.username || "Unknown User"}
+              </p>
+              <small className="text-muted">
+                {formatTimeAgo(post.createdAt)}
+              </small>
+              {post.edited && (
+                <small className="text-muted ms-2">(edited)</small>
+              )}
             </div>
           </div>
 
@@ -453,36 +501,50 @@ function HomePage() {
           </div>
         </div>
       </div>
-    ))
-  }
+    ));
+  };
 
   // Update the fetchPosts function to handle post status
   const fetchPosts = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
+      // Fetch all posts for the user's feed
       const response = await fetch(`${API_BASE_URL}/api/posts`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch posts")
+        throw new Error("Failed to fetch posts");
       }
 
-      const data = await response.json()
+      const data = await response.json();
 
-      // Filter out posts that aren't approved (this is a backup, as the API should already filter)
-      const approvedPosts = data.filter((post) => post.status === "approved")
+      // For the main feed, only show approved posts
+      const approvedPosts = data.filter((post) => post.status === "approved");
+      setPosts(approvedPosts);
 
-      setPosts(approvedPosts)
+      // Fetch user's own posts (including pending and rejected)
+      const userPostsResponse = await fetch(`${API_BASE_URL}/api/posts/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!userPostsResponse.ok) {
+        throw new Error("Failed to fetch user posts");
+      }
+
+      const userPostsData = await userPostsResponse.json();
+      setMyPosts(userPostsData);
     } catch (error) {
-      console.error("Error fetching posts:", error)
-      setError("Failed to load posts. Please try again later.")
+      console.error("Error fetching posts:", error);
+      setError("Failed to load posts. Please try again later.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="container-fluid p-0">
@@ -549,10 +611,16 @@ function HomePage() {
                 </div>
 
                 <div className="mb-4">
-                  <h6 className="text-uppercase text-muted mb-3 small fw-bold">Categories</h6>
+                  <h6 className="text-uppercase text-muted mb-3 small fw-bold">
+                    Categories
+                  </h6>
                   <div className="d-flex flex-wrap gap-2">
                     <button
-                      className={`btn ${categoryFilter === "all" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-3 py-2 mb-2`}
+                      className={`btn ${
+                        categoryFilter === "all"
+                          ? "btn-primary"
+                          : "btn-outline-secondary"
+                      } rounded-pill px-3 py-2 mb-2`}
                       onClick={() => setCategoryFilter("all")}
                     >
                       All Categories
@@ -560,7 +628,11 @@ function HomePage() {
                     {selectedCategories.map((category, index) => (
                       <button
                         key={index}
-                        className={`btn ${categoryFilter === category ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-3 py-2 mb-2`}
+                        className={`btn ${
+                          categoryFilter === category
+                            ? "btn-primary"
+                            : "btn-outline-secondary"
+                        } rounded-pill px-3 py-2 mb-2`}
                         onClick={() => setCategoryFilter(category)}
                       >
                         {category}
@@ -578,7 +650,7 @@ function HomePage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default HomePage
+export default HomePage;

@@ -1,28 +1,41 @@
-const express = require("express")
-const router = express.Router()
-const commentController = require("../controllers/commentController")
-const authenticate = require("../middlewares/authMiddleware")
-const upload = require("../middlewares/upload")
-const multer = require("multer")
+const express = require("express");
+const router = express.Router();
+const commentController = require("../controllers/commentController");
+const authenticate = require("../middlewares/authMiddleware");
+const upload = require("../middlewares/upload");
+const multer = require("multer");
 
 // Middleware to handle multer errors
 const handleMulterError = (req, res, next) => {
   upload.single("image")(req, res, (err) => {
     if (err instanceof multer.MulterError || err) {
-      console.error("Multer error:", err)
-      return res.status(400).json({ message: err.message || "File upload error" })
+      console.error("Multer error:", err);
+      return res
+        .status(400)
+        .json({ message: err.message || "File upload error" });
     }
-    next()
-  })
-}
+    next();
+  });
+};
 
 // Get all comments for a post
-router.get("/posts/:postId/comments", commentController.getCommentsByPost)
+router.get("/posts/:postId/comments", commentController.getCommentsByPost);
+
+// Get all comments by a user
+router.get("/user", authenticate, commentController.getCommentsByUser);
 
 // Create a new comment (with authentication and file handling)
-router.post("/posts/:postId/comments", authenticate, handleMulterError, commentController.createComment)
+router.post(
+  "/posts/:postId/comments",
+  authenticate,
+  handleMulterError,
+  commentController.createComment
+);
 
 // Delete a comment
-router.delete("/comments/:id", authenticate, commentController.deleteComment)
+router.delete("/comments/:id", authenticate, commentController.deleteComment);
 
-module.exports = router
+// Update a comment
+router.put("/comments/:id", authenticate, commentController.updateComment);
+
+module.exports = router;
