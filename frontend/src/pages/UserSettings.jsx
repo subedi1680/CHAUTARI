@@ -438,14 +438,17 @@ function UserSettings() {
     }
   }
 
-  // Fix the delete account modal issue by updating the modal initialization and styling
-  // Add a new modal for password confirmation when downloading data
-
   // First, update the handleDownloadData function to show a modal instead of downloading directly
-  const handleDownloadData = async () => {
-    // Show the download data modal instead of downloading directly
-    const downloadModal = new bootstrap.Modal(document.getElementById("downloadDataModal"))
-    downloadModal.show()
+  const handleDownloadData = () => {
+    // Reset the password field
+    setDeleteAccountPassword("")
+
+    // Show the download data modal
+    const downloadModal = document.getElementById("downloadDataModal")
+    if (downloadModal) {
+      const bsModal = new bootstrap.Modal(downloadModal)
+      bsModal.show()
+    }
   }
 
   // Add a new function to handle the actual download after password confirmation
@@ -504,9 +507,12 @@ function UserSettings() {
       URL.revokeObjectURL(url)
 
       // Close the modal
-      const downloadModal = bootstrap.Modal.getInstance(document.getElementById("downloadDataModal"))
+      const downloadModal = document.getElementById("downloadDataModal")
       if (downloadModal) {
-        downloadModal.hide()
+        const bsModal = bootstrap.Modal.getInstance(downloadModal)
+        if (bsModal) {
+          bsModal.hide()
+        }
       }
 
       // Clear the password field
@@ -521,18 +527,7 @@ function UserSettings() {
     }
   }
 
-  // Add this function to manually initialize the modal
-
-  const initializeModal = () => {
-    const modalElement = document.getElementById("deleteAccountModal")
-    if (modalElement) {
-      return new bootstrap.Modal(modalElement)
-    }
-    return null
-  }
-
   // Add handler for deleting account
-  // Update the handleDeleteAccount function to properly handle the modal
   const handleDeleteAccount = async () => {
     if (!deleteAccountPassword) {
       toast.error("Please enter your password to confirm account deletion")
@@ -566,25 +561,14 @@ function UserSettings() {
 
       toast.success("Your account has been deleted successfully")
 
-      // Close modal manually - first get the DOM element
-      const modalElement = document.getElementById("deleteAccountModal")
-      // Then get the Bootstrap modal instance
-      const modalInstance = bootstrap.Modal.getInstance(modalElement)
-      // If the instance exists, hide it
-      if (modalInstance) {
-        modalInstance.hide()
+      // Close modal
+      const deleteModal = document.getElementById("deleteAccountModal")
+      if (deleteModal) {
+        const bsModal = bootstrap.Modal.getInstance(deleteModal)
+        if (bsModal) {
+          bsModal.hide()
+        }
       }
-
-      // Remove the modal backdrop manually if it's still present
-      const backdrop = document.querySelector(".modal-backdrop")
-      if (backdrop) {
-        backdrop.remove()
-      }
-
-      // Make sure body doesn't have modal-open class
-      document.body.classList.remove("modal-open")
-      document.body.style.overflow = ""
-      document.body.style.paddingRight = ""
 
       // Add a small delay before redirecting
       setTimeout(() => {
@@ -603,20 +587,12 @@ function UserSettings() {
     // Initialize Bootstrap modals
     const deleteAccountModalEl = document.getElementById("deleteAccountModal")
     if (deleteAccountModalEl) {
-      new bootstrap.Modal(deleteAccountModalEl, {
-        backdrop: true,
-        keyboard: true,
-        focus: true,
-      })
+      new bootstrap.Modal(deleteAccountModalEl)
     }
 
     const downloadDataModalEl = document.getElementById("downloadDataModal")
     if (downloadDataModalEl) {
-      new bootstrap.Modal(downloadDataModalEl, {
-        backdrop: true,
-        keyboard: true,
-        focus: true,
-      })
+      new bootstrap.Modal(downloadDataModalEl)
     }
 
     // Fetch user posts on mount
@@ -1077,13 +1053,13 @@ function UserSettings() {
 
       {/* Delete Account Modal */}
       <div
-        className="modal fade"
+        className="modal"
         id="deleteAccountModal"
         tabIndex="-1"
         aria-labelledby="deleteAccountModalLabel"
         aria-hidden="true"
       >
-        <div className="modal-dialog">
+        <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title" id="deleteAccountModalLabel">
@@ -1143,13 +1119,13 @@ function UserSettings() {
 
       {/* Download Data Modal */}
       <div
-        className="modal fade"
+        className="modal"
         id="downloadDataModal"
         tabIndex="-1"
         aria-labelledby="downloadDataModalLabel"
         aria-hidden="true"
       >
-        <div className="modal-dialog">
+        <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title" id="downloadDataModalLabel">

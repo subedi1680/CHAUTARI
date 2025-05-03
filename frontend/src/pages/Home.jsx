@@ -51,8 +51,6 @@ function HomePage() {
   const [availableCategories, setAvailableCategories] = useState([])
   const [tempSelectedCategories, setTempSelectedCategories] = useState([])
   const [savingCategories, setSavingCategories] = useState(false)
-  const [userActivities, setUserActivities] = useState([])
-  const [activityLoading, setActivityLoading] = useState(false)
   const navigate = useNavigate()
   const { userAvatar } = useContext(UserContext)
   const [error, setError] = useState(null)
@@ -238,58 +236,6 @@ function HomePage() {
       window.removeEventListener("avatarUpdated", handleAvatarUpdate)
     }
   }, [userId])
-
-  // Fetch user activities when profile tab is active
-  useEffect(() => {
-    if (activeTab === "profile" && userId && token) {
-      fetchUserActivities()
-    }
-  }, [activeTab, userId, token])
-
-  const fetchUserActivities = async () => {
-    setActivityLoading(true)
-
-    try {
-      // Simulate fetching user activities
-      // In a real implementation, you would have an API endpoint for this
-
-      // For now, we'll create a mock activity log based on the user's posts
-      const activities = []
-
-      // Add post creation activities
-      myPosts.forEach((post) => {
-        activities.push({
-          type: "post",
-          action: "created",
-          content: post.title,
-          target: post._id,
-          timestamp: post.createdAt,
-          category: post.category,
-        })
-
-        // Add like/dislike activities if available
-        if (post.likedBy && post.likedBy.includes(userId)) {
-          activities.push({
-            type: "reaction",
-            action: "liked",
-            content: post.title,
-            target: post._id,
-            timestamp: new Date(new Date(post.createdAt).getTime() + 1000 * 60 * 5).toISOString(), // Mock timestamp 5 minutes after post
-            category: post.category,
-          })
-        }
-      })
-
-      // Sort activities by timestamp (newest first)
-      activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-
-      setUserActivities(activities)
-    } catch (err) {
-      console.error("Failed to fetch user activities:", err)
-    } finally {
-      setActivityLoading(false)
-    }
-  }
 
   const updateReactions = (postId, updatedData) => {
     // Update reactions in both post lists
@@ -555,7 +501,6 @@ function HomePage() {
               />
               <div>
                 <h5 className="mb-0">{userProfile?.username || "Guest"}</h5>
-                <p className="text-muted mb-0 small">{userProfile?.email || ""}</p>
               </div>
             </div>
 
@@ -578,39 +523,7 @@ function HomePage() {
                 <i className="bi bi-file-earmark-text me-3"></i>
                 My Posts
               </button>
-              <button
-                className={`list-group-item list-group-item-action d-flex align-items-center ${
-                  activeTab === "profile" ? "active" : ""
-                }`}
-                onClick={() => setActiveTab("profile")}
-              >
-                <i className="bi bi-person me-3"></i>
-                Profile
-              </button>
             </div>
-
-            {(activeTab === "feed" || activeTab === "myPosts") && (
-              <div className="mb-4">
-                <h6 className="text-uppercase text-muted mb-3 small fw-bold">Categories</h6>
-                <div className="list-group list-group-flush border-0 rounded-3">
-                  <button
-                    className={`list-group-item list-group-item-action ${categoryFilter === "all" ? "active" : ""}`}
-                    onClick={() => setCategoryFilter("all")}
-                  >
-                    All Categories
-                  </button>
-                  {selectedCategories.map((category, index) => (
-                    <button
-                      key={index}
-                      className={`list-group-item list-group-item-action ${categoryFilter === category ? "active" : ""}`}
-                      onClick={() => setCategoryFilter(category)}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -634,142 +547,30 @@ function HomePage() {
                     )}
                   </h4>
                 </div>
+
+                <div className="mb-4">
+                  <h6 className="text-uppercase text-muted mb-3 small fw-bold">Categories</h6>
+                  <div className="d-flex flex-wrap gap-2">
+                    <button
+                      className={`btn ${categoryFilter === "all" ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-3 py-2 mb-2`}
+                      onClick={() => setCategoryFilter("all")}
+                    >
+                      All Categories
+                    </button>
+                    {selectedCategories.map((category, index) => (
+                      <button
+                        key={index}
+                        className={`btn ${categoryFilter === category ? "btn-primary" : "btn-outline-secondary"} rounded-pill px-3 py-2 mb-2`}
+                        onClick={() => setCategoryFilter(category)}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="row">
                   <div className="col-lg-12">{renderPostCards()}</div>
-                </div>
-              </>
-            )}
-
-            {activeTab === "profile" && (
-              <>
-                <div className="card border-0 shadow-sm rounded-3 mb-4">
-                  <div className="card-body p-4">
-                    <div className="d-flex align-items-center mb-4">
-                      <UserAvatar
-                        user={{
-                          username: userProfile?.username || "Guest",
-                          avatar: userAvatar || userProfile?.avatar,
-                        }}
-                        size="lg"
-                        className="me-3"
-                      />
-                      <div className="ms-3">
-                        <h4 className="mb-1">{userProfile?.username || "Loading..."}</h4>
-                        <p className="text-muted mb-0">{userProfile?.email || ""}</p>
-                      </div>
-                      <button className="btn btn-outline-primary ms-auto" onClick={() => navigate("/user-settings")}>
-                        <i className="bi bi-pencil me-2"></i>
-                        Edit Profile
-                      </button>
-                    </div>
-
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <div className="card bg-light border-0">
-                          <div className="card-body">
-                            <h6 className="card-title">Your Posts</h6>
-                            <h3 className="card-text">{myPosts.length}</h3>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="card bg-light border-0">
-                          <div className="card-body">
-                            <h6 className="card-title">Selected Categories</h6>
-                            <h3 className="card-text">{selectedCategories.length}</h3>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h5 className="mb-0">Your Categories</h5>
-                        {!editingCategories ? (
-                          <button
-                            className="btn btn-outline-primary ms-auto"
-                            onClick={() => setEditingCategories(true)}
-                          >
-                            <i className="bi bi-pencil me-2"></i>
-                            Edit Categories
-                          </button>
-                        ) : (
-                          <div className="d-flex gap-2">
-                            <button
-                              className="btn btn-outline-secondary btn-sm"
-                              onClick={() => {
-                                setEditingCategories(false)
-                                setTempSelectedCategories(selectedCategories)
-                              }}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={saveCategories}
-                              disabled={savingCategories}
-                            >
-                              {savingCategories ? (
-                                <>
-                                  <span
-                                    className="spinner-border spinner-border-sm me-2"
-                                    role="status"
-                                    aria-hidden="true"
-                                  ></span>
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="bi bi-check2 me-2"></i>
-                                  Save Changes
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {!editingCategories ? (
-                        <div className="d-flex flex-wrap gap-2">
-                          {selectedCategories.length > 0 ? (
-                            selectedCategories.map((category, index) => (
-                              <span key={index} className="badge bg-primary rounded-pill px-3 py-2">
-                                {category}
-                              </span>
-                            ))
-                          ) : (
-                            <p className="text-muted">No categories selected</p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="category-selection p-3 bg-light rounded border">
-                          <p className="text-muted small mb-3">Select categories that interest you:</p>
-                          <div className="d-flex flex-wrap gap-2 mb-2">
-                            {availableCategories.map((category, index) => (
-                              <div
-                                key={index}
-                                className={`badge rounded-pill px-3 py-2 category-badge ${
-                                  tempSelectedCategories.includes(category)
-                                    ? "bg-primary"
-                                    : "bg-secondary bg-opacity-25 text-dark"
-                                }`}
-                                style={{ cursor: "pointer" }}
-                                onClick={() => toggleCategorySelection(category)}
-                              >
-                                {tempSelectedCategories.includes(category) && (
-                                  <i className="bi bi-check-circle-fill me-1"></i>
-                                )}
-                                {category}
-                              </div>
-                            ))}
-                          </div>
-                          <p className="text-muted small mt-2 mb-0">
-                            Selected: {tempSelectedCategories.length} categories
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </>
             )}
