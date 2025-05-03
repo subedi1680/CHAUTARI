@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
+import UserAvatar from "./UserAvatar"
 
 const ActivityTimeline = ({ limit = 5 }) => {
   const [activities, setActivities] = useState([])
@@ -140,20 +141,32 @@ const ActivityTimeline = ({ limit = 5 }) => {
             <i className={`bi ${getActivityIcon(activity)}`}></i>
           </div>
           <div className="timeline-content">
-            <div className="d-flex justify-content-between align-items-top mb-1">
-              <h6 className="mb-0 fs-6">{getActivityDescription(activity)}</h6>
-              <span className="badge bg-light text-dark small">{activity.category}</span>
-            </div>
-            <div className="text-muted small d-flex align-items-center">
-              <i className="bi bi-clock me-1"></i>
-              {formatTimeAgo(activity.timestamp)}
+            <div className="d-flex align-items-center mb-2">
+              <UserAvatar
+                user={{
+                  username: activity.username || "User",
+                  avatar: activity.userAvatar,
+                }}
+                size="sm"
+                className="me-2"
+              />
+              <div>
+                <div className="d-flex justify-content-between align-items-top mb-1">
+                  <h6 className="mb-0 fs-6">{getActivityDescription(activity)}</h6>
+                  <span className="badge bg-light text-dark small">{activity.category}</span>
+                </div>
+                <div className="text-muted small d-flex align-items-center">
+                  <i className="bi bi-clock me-1"></i>
+                  {formatTimeAgo(activity.timestamp)}
 
-              {activity.postId && (
-                <Link to={`/post/${activity.postId}`} className="ms-2 btn btn-sm btn-link p-0 text-decoration-none">
-                  <i className="bi bi-arrow-right me-1"></i>
-                  View
-                </Link>
-              )}
+                  {activity.postId && (
+                    <Link to={`/post/${activity.postId}`} className="ms-2 btn btn-sm btn-link p-0 text-decoration-none">
+                      <i className="bi bi-arrow-right me-1"></i>
+                      View
+                    </Link>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

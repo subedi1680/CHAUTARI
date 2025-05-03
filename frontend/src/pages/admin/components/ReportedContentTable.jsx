@@ -2,6 +2,7 @@
 "use client"
 
 import { useState } from "react"
+import UserAvatar from "../../../components/UserAvatar"
 
 const ReportedContentTable = ({ reports, loading, onAction }) => {
   const [expandedReportId, setExpandedReportId] = useState(null)
@@ -131,7 +132,12 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
               <>
                 <tr key={report._id} className={expandedReportId === report._id ? "table-active" : ""}>
                   <td>{getContentTypeBadge(report.contentType)}</td>
-                  <td>{report.reporter?.username || "Unknown"}</td>
+                  <td>
+                    <div className="d-flex align-items-center">
+                      <UserAvatar user={report.reporter} size="sm" className="me-2" />
+                      {report.reporter?.username || "Unknown"}
+                    </div>
+                  </td>
                   <td>
                     <div className="text-truncate" style={{ maxWidth: "200px" }}>
                       {report.reason}
@@ -177,7 +183,11 @@ const ReportedContentTable = ({ reports, loading, onAction }) => {
                         <div className="row g-3">
                           <div className="col-md-6">
                             <div className="mb-2">
-                              <strong>Reported By:</strong> {report.reporter?.username} ({report.reporter?.email})
+                              <strong>Reported By:</strong>
+                              <div className="d-flex align-items-center">
+                                <UserAvatar user={report.reporter} size="sm" className="me-2" />
+                                {report.reporter?.username} ({report.reporter?.email})
+                              </div>
                             </div>
                             <div className="mb-2">
                               <strong>Report Date:</strong> {formatDate(report.createdAt)}

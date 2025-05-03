@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import Select from "react-select"
+import UserAvatar from "../components/UserAvatar" // Add UserAvatar import
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 // Updated category options based on our new category structure

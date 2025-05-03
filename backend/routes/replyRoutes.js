@@ -18,7 +18,11 @@ const handleMulterError = (req, res, next) => {
 
 // Routes
 router.get("/comments/:commentId/replies", replyController.getRepliesByComment)
-router.post("/comments/:commentId/replies", authenticate, handleMulterError, replyController.createReply)
-router.delete("/replies/:replyId", authenticate, replyController.deleteReply)
+router.post("/comments/:commentId/replies", authenticate, handleMulterError, (req, res) => {
+  // Add commentId from params to the body
+  req.body.commentId = req.params.commentId
+  replyController.createReply(req, res)
+})
+router.delete("/replies/:id", authenticate, replyController.deleteReply)
 
 module.exports = router

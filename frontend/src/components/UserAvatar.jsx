@@ -1,10 +1,11 @@
 /* eslint-disable react/prop-types */
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
   const [imageError, setImageError] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState("")
 
   // Get initials from username
   const getInitials = (username) => {
@@ -22,6 +23,27 @@ const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
     setImageError(true)
   }
 
+  // Effect to handle avatar URL
+  useEffect(() => {
+    if (user?.avatar) {
+      // Check if avatar is a base64 string
+      if (typeof user.avatar === "string" && user.avatar.startsWith("data:image")) {
+        setAvatarUrl(user.avatar)
+      }
+      // Check if avatar is a URL
+      else if (typeof user.avatar === "string" && (user.avatar.startsWith("http") || user.avatar.startsWith("/"))) {
+        setAvatarUrl(user.avatar)
+      }
+      // Otherwise, assume it's a filename or path
+      else {
+        setAvatarUrl(user.avatar)
+      }
+      setImageError(false)
+    } else {
+      setImageError(true)
+    }
+  }, [user?.avatar])
+
   // Determine avatar size class
   const sizeClass =
     {
@@ -37,10 +59,15 @@ const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
       onClick={onClick}
       style={{ cursor: onClick ? "pointer" : "default" }}
     >
-      {user?.avatar && !imageError ? (
-        <img src={user.avatar || "/placeholder.svg"} alt={user.username || "User"} onError={handleError} />
+      {avatarUrl && !imageError ? (
+        <img
+          src={avatarUrl || "/placeholder.svg"}
+          alt={user?.username || "User"}
+          onError={handleError}
+          className="avatar-image"
+        />
       ) : (
-        <span>{getInitials(user?.username)}</span>
+        <span className="avatar-initials">{getInitials(user?.username)}</span>
       )}
     </div>
   )

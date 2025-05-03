@@ -352,14 +352,28 @@ const Header = () => {
                               onClick={() => handleNotificationClick(notification)}
                             >
                               <div className="d-flex">
-                                <div className={`me-3 ${!notification.read ? "text-primary" : "text-muted"}`}>
-                                  {notification.type === "comment" && (
-                                    <i className="bi bi-chat-left-text-fill fs-5"></i>
+                                <div className="me-3">
+                                  {notification.fromUser ? (
+                                    <UserAvatar
+                                      user={{
+                                        username: notification.fromUser.username || "User",
+                                        avatar: notification.fromUser.avatar,
+                                      }}
+                                      size="sm"
+                                    />
+                                  ) : (
+                                    <div className={`${!notification.read ? "text-primary" : "text-muted"}`}>
+                                      {notification.type === "comment" && (
+                                        <i className="bi bi-chat-left-text-fill fs-5"></i>
+                                      )}
+                                      {notification.type === "like" && (
+                                        <i className="bi bi-hand-thumbs-up-fill fs-5"></i>
+                                      )}
+                                      {notification.type === "reply" && <i className="bi bi-reply-fill fs-5"></i>}
+                                      {notification.type === "mention" && <i className="bi bi-at fs-5"></i>}
+                                      {notification.type === "system" && <i className="bi bi-gear-fill fs-5"></i>}
+                                    </div>
                                   )}
-                                  {notification.type === "like" && <i className="bi bi-hand-thumbs-up-fill fs-5"></i>}
-                                  {notification.type === "reply" && <i className="bi bi-reply-fill fs-5"></i>}
-                                  {notification.type === "mention" && <i className="bi bi-at fs-5"></i>}
-                                  {notification.type === "system" && <i className="bi bi-gear-fill fs-5"></i>}
                                 </div>
                                 <div className="flex-grow-1">
                                   <p className="mb-1">{notification.content}</p>

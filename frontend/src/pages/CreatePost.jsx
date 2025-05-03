@@ -4,6 +4,7 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import Select from "react-select"
+import UserAvatar from "../components/UserAvatar"
 
 // Updated category options based on our new category structure
 const categoryOptions = [

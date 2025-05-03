@@ -258,6 +258,7 @@ function PostDetails() {
     try {
       const formData = new FormData()
       formData.append("content", replyText)
+      formData.append("commentId", commentId)
       if (replyImage) formData.append("image", replyImage)
 
       const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`, {
@@ -266,7 +267,10 @@ function PostDetails() {
         body: formData,
       })
 
-      if (!res.ok) throw new Error("Failed to post reply")
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.msg || "Failed to post reply")
+      }
 
       const createdReply = await res.json()
       setReplies((prev) => ({
@@ -278,6 +282,7 @@ function PostDetails() {
       setActiveReplyId(null)
     } catch (err) {
       setError(err.message)
+      console.error("Error posting reply:", err)
     }
   }
 
@@ -301,6 +306,7 @@ function PostDetails() {
       socket.emit("contentDeleted", { type: "comment", commentId })
     } catch (err) {
       setError(err.message)
+      console.error("Error deleting comment:", err)
     }
   }
 

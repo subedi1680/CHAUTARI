@@ -3,6 +3,7 @@
 
 import { useState } from "react"
 import PostApprovalModal from "./PostApprovalModal"
+import UserAvatar from "../../../components/UserAvatar"
 
 const PostsTable = ({ posts, loading, onApprove, onReject }) => {
   const [selectedPost, setSelectedPost] = useState(null)
@@ -79,7 +80,12 @@ const PostsTable = ({ posts, loading, onApprove, onReject }) => {
                     </div>
                   </div>
                 </td>
-                <td>{post.user?.username || "Unknown"}</td>
+                <td>
+                  <div className="d-flex align-items-center">
+                    <UserAvatar user={post.user} size="sm" />
+                    <span className="ms-2">{post.user?.username || "Unknown"}</span>
+                  </div>
+                </td>
                 <td>{post.category}</td>
                 <td>{getStatusBadge(post.status)}</td>
                 <td>{new Date(post.createdAt).toLocaleDateString()}</td>

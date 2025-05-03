@@ -23,6 +23,6 @@ router.get("/posts/:postId/comments", commentController.getCommentsByPost)
 router.post("/posts/:postId/comments", authenticate, handleMulterError, commentController.createComment)
 
 // Delete a comment
-router.delete("/comments/:commentId", authenticate, commentController.deleteComment)
+router.delete("/comments/:id", authenticate, commentController.deleteComment)
 
 module.exports = router
