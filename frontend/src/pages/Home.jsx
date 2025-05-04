@@ -55,6 +55,9 @@ function HomePage() {
   const { userAvatar } = useContext(UserContext)
   const [error, setError] = useState(null)
 
+  // Add search state
+  const [searchQuery, setSearchQuery] = useState("")
+
   const token = sessionStorage.getItem("token")
   const userId = sessionStorage.getItem("userId")
 
@@ -306,11 +309,27 @@ function HomePage() {
     }
   }
 
-  // Filter posts based on category
+  // Filter posts based on category and search query
   const getFilteredPosts = () => {
     const postsToFilter = activeTab === "feed" ? posts : myPosts
-    if (categoryFilter === "all") return postsToFilter
-    return postsToFilter.filter((post) => post.category === categoryFilter)
+
+    // First filter by category
+    const filteredByCategory =
+      categoryFilter === "all" ? postsToFilter : postsToFilter.filter((post) => post.category === categoryFilter)
+
+    // Then filter by search query if it exists
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      return filteredByCategory.filter(
+        (post) =>
+          post.title?.toLowerCase().includes(query) ||
+          post.content?.toLowerCase().includes(query) ||
+          post.category?.toLowerCase().includes(query) ||
+          post.user?.username?.toLowerCase().includes(query),
+      )
+    }
+
+    return filteredByCategory
   }
 
   // Get unique categories from posts
@@ -366,6 +385,16 @@ function HomePage() {
     }
   }
 
+  // Handle search input change
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value)
+  }
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery("")
+  }
+
   // Function to render post cards
   const renderPostCards = () => {
     const filteredPosts = getFilteredPosts()
@@ -387,10 +416,21 @@ function HomePage() {
             <i className="bi bi-journal-text text-secondary" style={{ fontSize: "4rem" }}></i>
           </div>
           <h4 className="text-secondary">No posts available</h4>
-          <p className="text-muted">Be the first to create a post in this category!</p>
-          <button className="btn btn-secondary mt-2" onClick={() => navigate("/create-post")}>
-            Create a Post
-          </button>
+          {searchQuery ? (
+            <>
+              <p className="text-muted">No posts match your search criteria.</p>
+              <button className="btn btn-secondary mt-2" onClick={clearSearch}>
+                Clear Search
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-muted">Be the first to create a post in this category!</p>
+              <button className="btn btn-secondary mt-2" onClick={() => navigate("/create-post")}>
+                Create a Post
+              </button>
+            </>
+          )}
         </div>
       )
     }
@@ -512,7 +552,7 @@ function HomePage() {
     <div className="container-fluid p-0">
       <div className="row g-0">
         {/* Sidebar */}
-        <div className="col-lg-3 col-md-4 bg-light border-end sidebar">
+        <div className="col-lg-2 col-md-3 bg-light border-end sidebar">
           <div className="p-4">
             <div className="d-flex align-items-center mb-4">
               <UserAvatar
@@ -551,8 +591,8 @@ function HomePage() {
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="col-lg-9 col-md-8 main-content">
+        {/* Main Content - Posts */}
+        <div className="col-lg-7 col-md-6 main-content">
           <div className="container py-4">
             {(activeTab === "feed" || activeTab === "myPosts") && (
               <>
@@ -572,28 +612,24 @@ function HomePage() {
                   </h4>
                 </div>
 
+                {/* Search Bar */}
                 <div className="mb-4">
-                  <h6 className="text-uppercase text-muted mb-3 small fw-bold">Categories</h6>
-                  <div className="d-flex flex-wrap gap-2">
-                    <button
-                      className={`btn ${
-                        categoryFilter === "all" ? "btn-primary" : "btn-outline-secondary"
-                      } rounded-pill px-3 py-2 mb-2`}
-                      onClick={() => setCategoryFilter("all")}
-                    >
-                      All Categories
-                    </button>
-                    {selectedCategories.map((category, index) => (
-                      <button
-                        key={index}
-                        className={`btn ${
-                          categoryFilter === category ? "btn-primary" : "btn-outline-secondary"
-                        } rounded-pill px-3 py-2 mb-2`}
-                        onClick={() => setCategoryFilter(category)}
-                      >
-                        {category}
+                  <div className="input-group">
+                    <span className="input-group-text bg-white border-end-0">
+                      <i className="bi bi-search"></i>
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control border-start-0"
+                      placeholder="Search posts by title, content, category or author..."
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                    />
+                    {searchQuery && (
+                      <button className="btn btn-outline-secondary border-start-0" type="button" onClick={clearSearch}>
+                        <i className="bi bi-x-lg"></i>
                       </button>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -601,6 +637,44 @@ function HomePage() {
                   <div className="col-lg-12">{renderPostCards()}</div>
                 </div>
               </>
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar - Categories */}
+        <div className="col-lg-3 col-md-3 bg-light border-start">
+          <div className="p-4">
+            <h5 className="text-uppercase text-muted mb-3 fw-bold">Categories</h5>
+            <div className="d-flex flex-column gap-2">
+              <button
+                className={`btn ${
+                  categoryFilter === "all" ? "btn-primary" : "btn-outline-secondary"
+                } rounded-pill px-3 py-2 mb-2 w-100 text-start`}
+                onClick={() => setCategoryFilter("all")}
+              >
+                All Categories
+              </button>
+              {selectedCategories.map((category, index) => (
+                <button
+                  key={index}
+                  className={`btn ${
+                    categoryFilter === category ? "btn-primary" : "btn-outline-secondary"
+                  } rounded-pill px-3 py-2 mb-2 w-100 text-start`}
+                  onClick={() => setCategoryFilter(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            {/* Edit Categories Button */}
+            {userId && token && (
+              <div className="mt-4">
+                <button className="btn btn-outline-primary w-100" onClick={() => navigate("/user-settings")}>
+                  <i className="bi bi-pencil-square me-2"></i>
+                  Edit Categories
+                </button>
+              </div>
             )}
           </div>
         </div>

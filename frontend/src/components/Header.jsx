@@ -426,11 +426,7 @@ const Header = () => {
                         )}
                       </div>
 
-                      <div className="notification-footer">
-                        <Link to="/user-settings" className="btn btn-sm text-primary">
-                          Notification Settings
-                        </Link>
-                      </div>
+                      <div className="notification-footer">{/* Notification settings link removed */}</div>
                     </div>
                   </div>
 
