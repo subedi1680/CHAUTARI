@@ -1,0 +1,35 @@
+/* Modal size fix - Add this as a new CSS file */
+.modal-dialog.modal-lg {
+    width: 800px !important;
+    max-width: 800px !important;
+  }
+  
+  .modal-content {
+    width: 100% !important;
+    transform: none !important;
+    transition: opacity 0.15s linear !important;
+  }
+  
+  /* Prevent any hover effects from changing modal dimensions */
+  .modal-dialog:hover,
+  .modal-content:hover,
+  .modal-body:hover {
+    transform: none !important;
+  }
+  
+  /* Ensure modal has consistent height */
+  .modal-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+  
+  /* Fix for modal positioning */
+  .modal.fade.show {
+    display: block !important;
+  }
+  
+  /* Prevent cursor position from affecting modal size */
+  .fixed-modal-trigger {
+    position: relative;
+  }
+  

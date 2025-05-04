@@ -90,54 +90,14 @@ const AdminPosts = () => {
 
   // Handle post approval
   const handleApprovePost = async (postId) => {
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) return
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}/approve`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${adminToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to approve post")
-      }
-
-      // Update posts list
-      setPosts(posts.map((post) => (post._id === postId ? { ...post, status: "approved" } : post)))
-    } catch (err) {
-      setError(err.message)
-    }
+    // Navigate to the post detail page
+    navigate(`/admin/posts/${postId}`)
   }
 
   // Handle post rejection
   const handleRejectPost = async (postId, reason) => {
-    const adminToken = sessionStorage.getItem("adminToken")
-    if (!adminToken) return
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}/reject`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ reason }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to reject post")
-      }
-
-      // Update posts list
-      setPosts(
-        posts.map((post) => (post._id === postId ? { ...post, status: "rejected", rejectionReason: reason } : post)),
-      )
-    } catch (err) {
-      setError(err.message)
-    }
+    // Navigate to the post detail page
+    navigate(`/admin/posts/${postId}`)
   }
 
   // Handle search

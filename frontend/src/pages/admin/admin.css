@@ -184,6 +184,17 @@
   overflow-y: auto;
 }
 
+/* Modal sizing fix */
+.modal-dialog.modal-lg {
+  max-width: 800px;
+  width: 800px;
+}
+
+.modal-content {
+  transition: none !important;
+  transform: none !important;
+}
+
 /* Animation for notifications */
 @keyframes fadeIn {
   from {

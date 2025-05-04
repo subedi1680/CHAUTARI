@@ -4,6 +4,8 @@ import App from "./App.jsx"
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
 import * as bootstrap from "bootstrap"
 import "./index.css" // Import the CSS file with modal fixes
+// Add this import at the top of the file where you import other CSS files
+import "./pages/admin/modal-fix.css"
 
 // Initialize Bootstrap components after DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {

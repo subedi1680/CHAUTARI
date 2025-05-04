@@ -24,6 +24,7 @@ import CategorySetup from "./pages/CategorySetup"
 import AdminLogin from "./pages/admin/AdminLogin"
 import AdminDashboard from "./pages/admin/AdminDashboard"
 import AdminPosts from "./pages/admin/AdminPosts"
+import AdminPostDetail from "./pages/admin/AdminPostDetail"
 import AdminReports from "./pages/admin/AdminReports"
 import AdminSettings from "./pages/admin/AdminSettings"
 
@@ -64,6 +65,7 @@ function App() {
               <Route element={<AdminProtectedRoute />}>
                 <Route path="/admin/dashboard" element={<AdminDashboard />} />
                 <Route path="/admin/posts" element={<AdminPosts />} />
+                <Route path="/admin/posts/:postId" element={<AdminPostDetail />} />
                 <Route path="/admin/reports" element={<AdminReports />} />
               </Route>
 
