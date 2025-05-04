@@ -179,6 +179,27 @@ const getPendingPosts = async (req, res) => {
   }
 }
 
+// @desc    Get a single post by ID
+// @route   GET /api/admin/posts/:id
+// @access  Private (Admin only)
+const getPostById = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id).populate("user", ["username", "email", "avatar"]).populate({
+      path: "comments",
+      select: "_id",
+    })
+
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" })
+    }
+
+    res.json(post)
+  } catch (err) {
+    console.error("Error fetching post details:", err.message)
+    res.status(500).json({ msg: "Server Error" })
+  }
+}
+
 // @desc    Get all posts (with filter options)
 // @route   GET /api/admin/posts
 // @access  Private (Admin only)
@@ -460,6 +481,7 @@ module.exports = {
   verifyAdminOtp,
   getPendingPosts,
   getAllPosts,
+  getPostById,
   approvePost,
   rejectPost,
   getAdminStats,

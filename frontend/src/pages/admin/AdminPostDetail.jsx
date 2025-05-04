@@ -37,52 +37,55 @@ const AdminPostDetail = () => {
       setErrorType(null)
 
       try {
-        // First try to fetch from admin endpoint
-        let response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}`, {
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-          },
-        })
+        const adminToken = sessionStorage.getItem("adminToken")
+        if (!adminToken) {
+          navigate("/admin/login")
+          return
+        }
 
-        // If admin endpoint fails, try the regular post endpoint
-        if (!response.ok && response.status !== 401) {
-          console.log("Admin endpoint failed, trying regular post endpoint")
-          response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
+        // Use the admin API service instead of direct fetch
+        try {
+          const data = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}`, {
             headers: {
               Authorization: `Bearer ${adminToken}`,
             },
           })
-        }
 
-        if (!response.ok) {
-          if (response.status === 401) {
-            // Unauthorized, redirect to login
-            sessionStorage.removeItem("adminToken")
-            sessionStorage.removeItem("adminEmail")
-            sessionStorage.removeItem("adminRole")
-            navigate("/admin/login")
-            return
-          } else if (response.status === 404) {
-            setErrorType("not_found")
-            throw new Error("Post not found")
-          } else {
-            setErrorType("fetch_error")
-            throw new Error("Failed to fetch post details")
+          if (!data.ok) {
+            if (data.status === 401) {
+              // Unauthorized, redirect to login
+              sessionStorage.removeItem("adminToken")
+              sessionStorage.removeItem("adminEmail")
+              sessionStorage.removeItem("adminRole")
+              navigate("/admin/login")
+              return
+            } else if (data.status === 404) {
+              setErrorType("not_found")
+              throw new Error("Post not found")
+            } else {
+              console.error("Admin endpoint failed with status:", data.status)
+              setErrorType("fetch_error")
+              throw new Error("Failed to fetch post details")
+            }
           }
+
+          const post = await data.json()
+
+          // Check if the data has the expected structure
+          if (!post || !post._id) {
+            setErrorType("invalid_data")
+            throw new Error("Invalid post data received")
+          }
+
+          setPost(post)
+        } catch (err) {
+          console.error("Error fetching post:", err)
+          setError(err.message)
         }
-
-        const data = await response.json()
-
-        // Check if the data has the expected structure
-        if (!data || !data._id) {
-          setErrorType("invalid_data")
-          throw new Error("Invalid post data received")
-        }
-
-        setPost(data)
       } catch (err) {
-        console.error("Error fetching post:", err)
-        setError(err.message)
+        console.error("Error in fetch operation:", err)
+        setError("Network or server error occurred. Please try again later.")
+        setErrorType("fetch_error")
       } finally {
         setLoading(false)
       }

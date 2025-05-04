@@ -12,6 +12,7 @@ router.post("/verify-otp", adminController.verifyAdminOtp)
 router.get("/stats", adminAuth, adminController.getAdminStats)
 router.get("/posts/pending", adminAuth, adminController.getPendingPosts)
 router.get("/posts", adminAuth, adminController.getAllPosts)
+router.get("/posts/:id", adminAuth, adminController.getPostById)
 router.put("/posts/:id/approve", adminAuth, adminController.approvePost)
 router.put("/posts/:id/reject", adminAuth, adminController.rejectPost)
 

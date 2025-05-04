@@ -294,6 +294,10 @@ export const adminApi = {
     return ApiService.fetchWithAuth(endpoint, {}, true)
   },
 
+  getPost: async (postId) => {
+    return ApiService.fetchWithAuth(`/api/admin/posts/${postId}`, {}, true)
+  },
+
   approvePost: async (postId) => {
     return ApiService.fetchWithAuth(
       `/api/admin/posts/${postId}/approve`,
