@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "dompurify": "^3.2.5",
     "multer": "^1.4.5-lts.2",
     "socket.io": "^4.8.1"
   }

@@ -195,20 +195,7 @@ const PendingPostsList = ({ limit = 10, onStatusChange }) => {
                     >
                       <i className="bi bi-eye"></i>
                     </button>
-                    <button
-                      className="btn btn-sm btn-outline-success"
-                      onClick={() => handleApprovePost(post._id)}
-                      title="Approve"
-                    >
-                      <i className="bi bi-check-lg"></i>
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={() => openPostModal(post)}
-                      title="Reject"
-                    >
-                      <i className="bi bi-x-lg"></i>
-                    </button>
+                    {/* Approve/Reject buttons removed as requested */}
                   </div>
                 </td>
               </tr>

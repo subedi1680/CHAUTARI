@@ -131,24 +131,7 @@ const PostsTable = ({ posts, onApprove, onReject, loading }) => {
                     <i className="bi bi-eye"></i> View
                   </Link>
 
-                  {post.status === "pending" && (
-                    <div className="btn-group">
-                      <button
-                        className="btn btn-sm btn-outline-success"
-                        onClick={() => onApprove(post._id)}
-                        title="Approve Post"
-                      >
-                        <i className="bi bi-check-lg"></i>
-                      </button>
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => onReject(post._id)}
-                        title="Reject Post"
-                      >
-                        <i className="bi bi-x-lg"></i>
-                      </button>
-                    </div>
-                  )}
+                  {/* Approve/Reject buttons removed as requested */}
                 </div>
               </td>
             </tr>
