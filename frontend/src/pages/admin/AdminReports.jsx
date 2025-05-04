@@ -60,11 +60,15 @@ const AdminReports = () => {
       }
 
       const data = await response.json()
+
+      // Log the data structure to help with debugging
+      console.log("Reports data:", data)
+
       setReports(data)
-      setLoading(false)
     } catch (err) {
       console.error("Error fetching reports:", err)
       setError(err.message)
+    } finally {
       setLoading(false)
     }
   }
@@ -107,7 +111,7 @@ const AdminReports = () => {
       fetchReports()
     } catch (err) {
       console.error(`Error ${action} report:`, err)
-      alert(`Failed to ${action} report. Please try again.`)
+      setError(`Failed to ${action} report. Please try again.`)
     }
   }
 

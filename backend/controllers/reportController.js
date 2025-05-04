@@ -122,36 +122,45 @@ const getAllReports = async (req, res) => {
           const content = await contentModel.findById(report.contentId)
 
           if (content) {
+            // Add the content directly to the report object for easier frontend access
+            reportObj.content = content.toObject ? content.toObject() : content
+
             // Populate user for the content
             if (report.contentType === "post") {
               await content.populate("user", "username email avatar")
-              reportObj.contentDetails = {
-                title: content.title,
-                content: content.content,
-                user: content.user,
-              }
+              reportObj.content.user = content.user
+              // Add both title and content fields for consistency
+              reportObj.content.title = content.title
+              reportObj.content.body = content.content // Map content to body for frontend compatibility
             } else if (report.contentType === "comment") {
               await content.populate("user", "username email avatar")
               await content.populate("post", "title")
-              reportObj.contentDetails = {
-                content: content.content,
-                user: content.user,
-                post: content.post,
-              }
+              reportObj.content.user = content.user
+              reportObj.content.post = content.post
+              reportObj.content.text = content.content // Map content to text for frontend compatibility
             } else if (report.contentType === "reply") {
               await content.populate("user", "username email avatar")
               await content.populate("comment", "content")
-              reportObj.contentDetails = {
-                content: content.content,
-                user: content.user,
-                comment: content.comment,
-              }
+              reportObj.content.user = content.user
+              reportObj.content.comment = content.comment
+              reportObj.content.text = content.content // Map content to text for frontend compatibility
+            }
+
+            // Keep the contentDetails for backward compatibility
+            reportObj.contentDetails = {
+              title: report.contentType === "post" ? content.title : undefined,
+              content: content.content,
+              user: content.user,
+              post: report.contentType === "comment" ? content.post : undefined,
+              comment: report.contentType === "reply" ? content.comment : undefined,
             }
           } else {
+            reportObj.content = { deleted: true }
             reportObj.contentDetails = { deleted: true }
           }
         } catch (err) {
           console.error(`Error fetching content for report ${report._id}:`, err.message)
+          reportObj.content = { error: true }
           reportObj.contentDetails = { error: true }
         }
 
