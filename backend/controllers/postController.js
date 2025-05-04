@@ -1,36 +1,61 @@
 const mongoose = require("mongoose")
 const Post = require("../models/Post")
+const User = require("../models/User") // Import User model
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id)
 
 // Create a new post
 const createPost = async (req, res) => {
-  const { title, content, category } = req.body
-
-  if (!title || !content || !category) {
-    return res.status(400).json({ msg: "Title, category, and content are required" })
-  }
-
   try {
-    const coverImage = req.file ? req.file.buffer.toString("base64") : null
+    // Check if user is banned
+    const user = await User.findById(req.user.id)
+    if (user && user.isCurrentlyBanned()) {
+      let banMessage = "You cannot create posts while your account is banned."
+      if (user.banExpiresAt) {
+        const expiryDate = new Date(user.banExpiresAt).toLocaleDateString()
+        banMessage += ` Your ban will expire on ${expiryDate}.`
+      } else {
+        banMessage += " Your account has been permanently banned."
+      }
 
-    const post = new Post({
-      title,
-      content,
-      category,
-      coverImage,
-      user: req.user.id,
-      status: "pending", // Set status to pending by default
-    })
+      return res.status(403).json({
+        msg: banMessage,
+        isBanned: true,
+        banExpiresAt: user.banExpiresAt,
+        banReason: user.banReason,
+      })
+    }
 
-    await post.save()
+    const { title, content, category } = req.body
 
-    // Notify admins about new post (you could implement this)
+    if (!title || !content || !category) {
+      return res.status(400).json({ msg: "Title, category, and content are required" })
+    }
 
-    res.status(201).json(post)
+    try {
+      const coverImage = req.file ? req.file.buffer.toString("base64") : null
+
+      const post = new Post({
+        title,
+        content,
+        category,
+        coverImage,
+        user: req.user.id,
+        status: "pending", // Set status to pending by default
+      })
+
+      await post.save()
+
+      // Notify admins about new post (you could implement this)
+
+      res.status(201).json(post)
+    } catch (err) {
+      console.error("Post creation error:", err.message)
+      res.status(500).json({ msg: "Server Error" })
+    }
   } catch (err) {
-    console.error("Post creation error:", err.message)
-    res.status(500).json({ msg: "Server Error" })
+    console.error("Error checking ban status:", err.message)
+    return res.status(500).json({ msg: "Server Error" })
   }
 }
 

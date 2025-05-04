@@ -222,7 +222,16 @@ function PostDetails() {
         body: formData,
       })
 
-      if (!res.ok) throw new Error("Failed to post comment")
+      if (!res.ok) {
+        const errorData = await res.json()
+
+        // Check if the error is due to being banned
+        if (res.status === 403 && errorData.isBanned) {
+          throw new Error(errorData.msg || "You are banned and cannot comment.")
+        }
+
+        throw new Error(errorData.msg || "Failed to post comment")
+      }
 
       const createdComment = await res.json()
       setComments((prev) => [createdComment, ...prev])

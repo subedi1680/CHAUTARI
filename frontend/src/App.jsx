@@ -27,6 +27,7 @@ import AdminPosts from "./pages/admin/AdminPosts"
 import AdminPostDetail from "./pages/admin/AdminPostDetail"
 import AdminReports from "./pages/admin/AdminReports"
 import AdminSettings from "./pages/admin/AdminSettings"
+import AdminUsers from "./pages/admin/AdminUsers"
 
 // Styles
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -67,6 +68,7 @@ function App() {
                 <Route path="/admin/posts" element={<AdminPosts />} />
                 <Route path="/admin/posts/:postId" element={<AdminPostDetail />} />
                 <Route path="/admin/reports" element={<AdminReports />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
               </Route>
 
               {/* Super admin only routes */}

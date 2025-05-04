@@ -8,6 +8,7 @@ import logo from "../assets/logo-removebg.png"
 import UserAvatar from "./UserAvatar"
 import UserContext from "./UserContext"
 import * as bootstrap from "bootstrap"
+import { API_BASE_URL } from "../config"
 
 const Header = () => {
   const location = useLocation()
@@ -22,6 +23,7 @@ const Header = () => {
   const notificationDropdownRef = useRef(null)
   const userDropdownRef = useRef(null)
   const { userAvatar } = useContext(UserContext)
+  const [userBanStatus, setUserBanStatus] = useState(null)
 
   // Check if current page is the landing page
   const isLandingPage = location.pathname === "/"
@@ -31,6 +33,31 @@ const Header = () => {
 
   // Add a ref to track if notifications have been fetched
   const notificationsInitializedRef = useRef(false)
+
+  // Add this function to check ban status
+  const checkUserBanStatus = async () => {
+    if (!userSession.isAuthenticated()) return
+
+    try {
+      const token = userSession.getToken()
+      const response = await fetch(`${API_BASE_URL}/api/users/ban-status`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.isBanned) {
+          setUserBanStatus(data)
+        } else {
+          setUserBanStatus(null)
+        }
+      }
+    } catch (error) {
+      console.error("Error checking ban status:", error)
+    }
+  }
 
   useEffect(() => {
     const checkAuth = () => {
@@ -43,6 +70,7 @@ const Header = () => {
         fetchNotifications()
         connectToSocket()
         notificationsInitializedRef.current = true
+        checkUserBanStatus()
       } else if (!userSession.isAuthenticated() && socketRef.current) {
         // Disconnect socket if not authenticated
         socketRef.current.disconnect()
@@ -304,6 +332,14 @@ const Header = () => {
             <div className="d-flex align-items-center ms-auto">
               {isAuthenticated ? (
                 <>
+                  {userBanStatus && (
+                    <div className="alert alert-warning d-flex align-items-center py-1 px-2 me-3 mb-0">
+                      <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                      <div className="small">
+                        <strong>Account Restricted</strong>
+                      </div>
+                    </div>
+                  )}
                   {/* Notification Bell */}
                   <div className="dropdown me-3" ref={notificationDropdownRef}>
                     <button
@@ -422,6 +458,16 @@ const Header = () => {
                           User Settings
                         </Link>
                       </li>
+                      {userBanStatus && (
+                        <li>
+                          <div className="dropdown-item text-warning">
+                            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                            {userBanStatus.banExpiresAt
+                              ? `Banned until ${new Date(userBanStatus.banExpiresAt).toLocaleDateString()}`
+                              : "Permanently banned"}
+                          </div>
+                        </li>
+                      )}
                       <li>
                         <hr className="dropdown-divider" />
                       </li>

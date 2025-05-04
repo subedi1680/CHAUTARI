@@ -757,7 +757,6 @@ function UserSettings() {
         <div className="col-lg-3 mb-4">
           <div className="card border-0 shadow-sm">
             <div className="card-body">
-              {/* Remove bio display and edit from the sidebar */}
               <div className="text-center mb-4">
                 <div className="position-relative d-inline-block">
                   <UserAvatar user={userProfile} size="xl" className="mx-auto mb-3" />

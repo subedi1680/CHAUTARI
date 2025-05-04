@@ -30,6 +30,7 @@ function startServer() {
   const notificationRoutes = require("./routes/notificationRoutes")
   const adminRoutes = require("./routes/adminRoutes") // Add admin routes
   const reportRoutes = require("./routes/reportRoutes") // Add report routes
+  const userManagementRoutes = require("./routes/userManagementRoutes")
 
   const app = express()
   const PORT = process.env.PORT || 5000
@@ -130,6 +131,10 @@ function startServer() {
   app.use("/api/notifications", notificationRoutes)
   app.use("/api/admin", adminRoutes) // Add admin routes
   app.use("/api/reports", reportRoutes) // Register report routes
+  app.use("/api/admin/users", userManagementRoutes)
+
+  // Make sure the admin user management routes are properly registered
+  app.use("/api/admin/users", require("./routes/userManagementRoutes"))
 
   // Test route for email configuration
   app.get("/api/test-email", (req, res) => {

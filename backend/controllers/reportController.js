@@ -2,7 +2,9 @@ const Report = require("../models/Report")
 const Post = require("../models/Post")
 const Comment = require("../models/Comment")
 const Reply = require("../models/Reply")
+const User = require("../models/User")
 const mongoose = require("mongoose")
+const { createNotification } = require("./notificationController")
 
 // @desc    Create a new report
 // @route   POST /api/reports
@@ -127,19 +129,19 @@ const getAllReports = async (req, res) => {
 
             // Populate user for the content
             if (report.contentType === "post") {
-              await content.populate("user", "username email avatar")
+              await content.populate("user", "username email avatar violationCount isBanned banExpiresAt")
               reportObj.content.user = content.user
               // Add both title and content fields for consistency
               reportObj.content.title = content.title
               reportObj.content.body = content.content // Map content to body for frontend compatibility
             } else if (report.contentType === "comment") {
-              await content.populate("user", "username email avatar")
+              await content.populate("user", "username email avatar violationCount isBanned banExpiresAt")
               await content.populate("post", "title")
               reportObj.content.user = content.user
               reportObj.content.post = content.post
               reportObj.content.text = content.content // Map content to text for frontend compatibility
             } else if (report.contentType === "reply") {
-              await content.populate("user", "username email avatar")
+              await content.populate("user", "username email avatar violationCount isBanned banExpiresAt")
               await content.populate("comment", "content")
               reportObj.content.user = content.user
               reportObj.content.comment = content.comment
@@ -250,6 +252,38 @@ const updateReportStatus = async (req, res) => {
 
           const content = await contentModel.findById(report.contentId)
           if (content) {
+            // Get the user who created the content
+            const userId = content.user
+
+            // Increment violation count for the user
+            const user = await User.findById(userId)
+            if (user) {
+              user.violationCount += 1
+
+              // Add to violation history
+              user.violationHistory.push({
+                reportId: report._id,
+                date: new Date(),
+                reason: report.reason,
+                actionTaken: "warning",
+              })
+
+              // Check if user should be banned based on violation count
+              await user.applyBanIfNeeded()
+
+              // Notify user about the violation
+              try {
+                await createNotification({
+                  recipient: userId,
+                  type: "system",
+                  content: `Your ${report.contentType} was removed due to a violation. You now have ${user.violationCount} violation(s).${user.isBanned ? " Your account has been temporarily banned." : ""}`,
+                })
+              } catch (notifError) {
+                console.error("Error creating violation notification:", notifError)
+              }
+            }
+
+            // Delete the content
             await content.deleteOne()
           }
 

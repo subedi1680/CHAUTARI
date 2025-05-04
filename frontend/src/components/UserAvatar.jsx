@@ -29,16 +29,18 @@ const UserAvatar = ({ user, size = "md", className = "", onClick }) => {
       // Check if avatar is a base64 string
       if (typeof user.avatar === "string" && user.avatar.startsWith("data:image")) {
         setAvatarUrl(user.avatar)
+        setImageError(false)
       }
       // Check if avatar is a URL
       else if (typeof user.avatar === "string" && (user.avatar.startsWith("http") || user.avatar.startsWith("/"))) {
         setAvatarUrl(user.avatar)
+        setImageError(false)
       }
       // Otherwise, assume it's a filename or path
       else {
         setAvatarUrl(user.avatar)
+        setImageError(false)
       }
-      setImageError(false)
     } else {
       setImageError(true)
     }
