@@ -28,10 +28,6 @@ const userSchema = mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  bio: {
-    type: String,
-    default: "",
-  },
   avatar: {
     type: String,
     default: "",
