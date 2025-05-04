@@ -24,6 +24,13 @@ const Header = () => {
   const userDropdownRef = useRef(null)
   const { userAvatar } = useContext(UserContext)
   const [userBanStatus, setUserBanStatus] = useState(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const searchInputRef = useRef(null)
+  const searchResultsRef = useRef(null)
+  const searchTimeoutRef = useRef(null)
 
   // Check if current page is the landing page
   const isLandingPage = location.pathname === "/"
@@ -58,6 +65,144 @@ const Header = () => {
       console.error("Error checking ban status:", error)
     }
   }
+
+  // Format time ago for search results
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString)
+    const seconds = Math.floor((new Date() - date) / 1000)
+
+    const intervals = [
+      { label: "year", seconds: 31536000 },
+      { label: "month", seconds: 2592000 },
+      { label: "day", seconds: 86400 },
+      { label: "hour", seconds: 3600 },
+      { label: "minute", seconds: 60 },
+      { label: "second", seconds: 1 },
+    ]
+
+    for (const interval of intervals) {
+      const count = Math.floor(seconds / interval.seconds)
+      if (count > 0) {
+        return `${count} ${interval.label}${count !== 1 ? "s" : ""} ago`
+      }
+    }
+    return "just now"
+  }
+
+  // Handle search input change with debounce
+  const handleSearchChange = (e) => {
+    const value = e.target.value
+    setSearchQuery(value)
+
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    if (value.trim()) {
+      setIsSearching(true)
+      setShowSearchResults(true)
+
+      // Set a new timeout for the search
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(value)
+      }, 300) // 300ms debounce
+    } else {
+      setSearchResults([])
+      setIsSearching(false)
+      setShowSearchResults(false)
+    }
+  }
+
+  // Perform the actual search
+  const performSearch = async (query) => {
+    if (!query.trim() || !isAuthenticated) return
+
+    try {
+      const token = userSession.getToken()
+      const response = await fetch(`${API_BASE_URL}/api/posts/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setSearchResults(data.slice(0, 5)) // Limit to 5 results for dropdown
+      } else {
+        console.error("Search failed:", response.statusText)
+      }
+    } catch (error) {
+      console.error("Error performing search:", error)
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery("")
+    setSearchResults([])
+    setShowSearchResults(false)
+
+    // If we're on the home page with a search query, navigate back to clean home
+    if (location.pathname === "/home" && location.search.includes("search=")) {
+      navigate("/home")
+    }
+  }
+
+  // Handle search result click
+  const handleSearchResultClick = (postId) => {
+    setShowSearchResults(false)
+    navigate(`/post/${postId}`)
+  }
+
+  // Handle view all results click
+  const handleViewAllResults = () => {
+    setShowSearchResults(false)
+    navigate(`/home?search=${encodeURIComponent(searchQuery.trim())}`)
+  }
+
+  // Handle search submission
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      setShowSearchResults(false)
+      navigate(`/home?search=${encodeURIComponent(searchQuery.trim())}`)
+    }
+  }
+
+  // Handle clicks outside search results dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        searchResultsRef.current &&
+        !searchResultsRef.current.contains(event.target) &&
+        !searchInputRef.current.contains(event.target)
+      ) {
+        setShowSearchResults(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  // Reset search when location changes
+  useEffect(() => {
+    if (!location.search.includes("search=")) {
+      setSearchQuery("")
+    } else {
+      // Extract search query from URL if present
+      const params = new URLSearchParams(location.search)
+      const urlSearchQuery = params.get("search")
+      if (urlSearchQuery) {
+        setSearchQuery(urlSearchQuery)
+      }
+    }
+  }, [location])
 
   useEffect(() => {
     const checkAuth = () => {
@@ -147,6 +292,11 @@ const Header = () => {
       // Disconnect socket on unmount
       if (socketRef.current) {
         socketRef.current.disconnect()
+      }
+
+      // Clear any pending search timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
       }
     }
   }, [])
@@ -327,6 +477,98 @@ const Header = () => {
                   </li>
                 )}
               </ul>
+            )}
+
+            {isAuthenticated && !isAdminPage && (
+              <div className="search-container position-relative mx-auto" style={{ maxWidth: "400px" }}>
+                <form className="d-flex" onSubmit={handleSearchSubmit}>
+                  <div className="input-group">
+                    <span className="input-group-text bg-white border-end-0">
+                      <i className="bi bi-search"></i>
+                    </span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className="form-control border-start-0"
+                      placeholder="Search posts..."
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                      aria-label="Search"
+                      autoComplete="off"
+                    />
+                    {searchQuery && (
+                      <button
+                        className="btn btn-outline-secondary border-start-0"
+                        type="button"
+                        onClick={clearSearch}
+                        aria-label="Clear search"
+                      >
+                        <i className="bi bi-x-lg"></i>
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                {/* Real-time search results dropdown */}
+                {showSearchResults && (searchResults.length > 0 || isSearching) && (
+                  <div
+                    ref={searchResultsRef}
+                    className="search-results-dropdown position-absolute bg-white shadow-lg rounded-3 w-100 mt-1 z-3"
+                    style={{ maxHeight: "400px", overflowY: "auto" }}
+                  >
+                    {isSearching ? (
+                      <div className="p-3 text-center">
+                        <div className="spinner-border spinner-border-sm text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <p className="mb-0 mt-2">Searching...</p>
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <>
+                        {searchResults.map((post) => (
+                          <div
+                            key={post._id}
+                            className="search-result-item p-3 border-bottom hover-bg-light cursor-pointer"
+                            onClick={() => handleSearchResultClick(post._id)}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <div className="d-flex align-items-start">
+                              {post.coverImage && (
+                                <div className="me-3" style={{ width: "50px", height: "50px" }}>
+                                  <img
+                                    src={`data:image/jpeg;base64,${post.coverImage}`}
+                                    alt=""
+                                    className="img-fluid rounded"
+                                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                  />
+                                </div>
+                              )}
+                              <div>
+                                <h6 className="mb-1 text-truncate" style={{ maxWidth: "300px" }}>
+                                  {post.title}
+                                </h6>
+                                <div className="d-flex align-items-center">
+                                  <span className="badge bg-primary me-2">{post.category || "Uncategorized"}</span>
+                                  <small className="text-muted">{formatTimeAgo(post.createdAt)}</small>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="p-3 text-center bg-light">
+                          <button className="btn btn-sm btn-primary" onClick={handleViewAllResults}>
+                            View all results
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-3 text-center">
+                        <p className="mb-0">No results found</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="d-flex align-items-center ms-auto">
