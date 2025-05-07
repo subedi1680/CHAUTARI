@@ -4,8 +4,7 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import Select from "react-select"
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+import { API_BASE_URL } from "../config"
 
 function CreateNewPost() {
   const [formData, setFormData] = useState({
@@ -94,7 +93,7 @@ function CreateNewPost() {
         return
       }
 
-      const response = await fetch("http://localhost:5000/api/posts", {
+      const response = await fetch(`${API_BASE_URL}/api/posts`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
