@@ -4,7 +4,6 @@ import { useState, useContext, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import UserContext from "../components/UserContext"
 import { categoryStructure, categoryImages } from "../utils/categoryData"
-import { API_BASE_URL } from "../config"
 import "./CategorySetup.css"
 
 const CategorySetup = () => {
@@ -21,22 +20,15 @@ const CategorySetup = () => {
 
     const fetchUserData = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+        const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
-
-        if (!response.ok) {
-          console.error("Error fetching user data:", response.statusText)
-          return
-        }
-
         const user = await response.json()
         if (user.categorySetupCompleted) {
           navigate("/home")
         }
       } catch (error) {
         console.error("Error fetching user data:", error)
-        // Continue with setup if we can't verify completion status
       }
     }
 
@@ -78,7 +70,7 @@ const CategorySetup = () => {
 
     try {
       // Send the updated categories and mark category setup as completed in the database
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
+      const response = await fetch(`http://localhost:5000/api/users/${userId}/categories`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -91,15 +83,12 @@ const CategorySetup = () => {
         markCategorySetupCompleted()
         navigate("/home")
       } else {
-        const errorData = await response.json().catch(() => ({ msg: "Failed to save category setup" }))
+        const errorData = await response.json()
         throw new Error(errorData.msg || "Failed to save category setup")
       }
     } catch (error) {
       console.error("Failed to save category setup:", error)
-      // Continue anyway to prevent users from getting stuck
-      alert("There was an issue saving your categories, but you can continue using the app.")
-      markCategorySetupCompleted()
-      navigate("/home")
+      alert("Failed to save your categories. Please try again.")
     } finally {
       setLoading(false)
     }

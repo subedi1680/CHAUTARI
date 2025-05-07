@@ -6,17 +6,17 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap-icons/font/bootstrap-icons.css"
 import { useState, useEffect, useContext } from "react"
 import { useNavigate } from "react-router-dom"
+import { io } from "socket.io-client"
 import { categoryStructure } from "../utils/categoryData"
-import { userApi, postApi } from "../utils/apiService"
 import "./Home.css"
 
 // Add these imports at the top of the file, after the existing imports
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
 import UserAvatar from "../components/UserAvatar"
 import UserContext from "../components/UserContext"
-import { useSocketStatus } from "../hooks/useSockets"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
 
 const formatTimeAgo = (dateString) => {
   const date = new Date(dateString)
@@ -55,7 +55,6 @@ function HomePage() {
   const navigate = useNavigate()
   const { userAvatar } = useContext(UserContext)
   const [error, setError] = useState(null)
-  const isSocketConnected = useSocketStatus()
 
   // Add search state
   const [searchQuery, setSearchQuery] = useState("")
@@ -69,22 +68,46 @@ function HomePage() {
       if (userId && token) {
         try {
           setLoading(true)
-          // Use the API service instead of direct fetch
-          const userData = await userApi.getProfile().catch((err) => {
-            console.error("Error fetching user profile:", err)
-            return { categories: [] }
+          const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           })
+          if (response.ok) {
+            const userData = await response.json()
+            setUserProfile(userData)
+            setSelectedCategories(userData.categories || [])
+            setTempSelectedCategories(userData.categories || [])
+            sessionStorage.setItem("username", userData.username || "")
 
-          setUserProfile(userData)
-          setSelectedCategories(userData.categories || [])
-          setTempSelectedCategories(userData.categories || [])
-          sessionStorage.setItem("username", userData.username || "")
+            // Now fetch posts after categories are loaded
+            fetchPosts()
+            const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
+            if (!postsResponse.ok) {
+              throw new Error("Failed to fetch posts")
+            }
+            const postsData = await postsResponse.json()
+            if (!Array.isArray(postsData)) {
+              throw new Error("Invalid response format from server")
+            }
 
-          // Now fetch posts after categories are loaded
-          fetchPosts()
+            // Filter posts based on selected categories
+            const filteredPosts =
+              userData.categories && userData.categories.length > 0
+                ? postsData.filter((post) => userData.categories.includes(post.category))
+                : postsData
+
+            // Also filter out the user's own posts for the "My Posts" tab
+            const userPosts = postsData.filter((post) => post.user?._id === userId)
+
+            const sortedPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            const sortedMyPosts = userPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+            setPosts(sortedPosts)
+            setMyPosts(sortedMyPosts)
+          }
         } catch (err) {
           console.error("Error fetching data:", err)
-          setError("Failed to load user data. Please try again later.")
         } finally {
           setLoading(false)
         }
@@ -97,9 +120,11 @@ function HomePage() {
     const fetchAllPosts = async () => {
       try {
         setLoading(true)
-        // Use the API service instead of direct fetch
-        const data = await postApi.getAllPosts()
-
+        const response = await fetch(`${API_BASE_URL}/api/posts`)
+        if (!response.ok) {
+          throw new Error("Failed to fetch posts")
+        }
+        const data = await response.json()
         if (!Array.isArray(data)) {
           throw new Error("Invalid response format from server")
         }
@@ -108,7 +133,6 @@ function HomePage() {
         setPosts(sortedPosts)
       } catch (err) {
         console.error("Failed to fetch posts:", err)
-        setError("Failed to load posts. Please try again later.")
       } finally {
         setLoading(false)
       }
@@ -126,9 +150,10 @@ function HomePage() {
     })
     setAvailableCategories(allCategories)
 
-    // Add event listener for comment count updates
-    const handleCommentCountUpdate = (data) => {
-      const { postId, action } = data
+    // Socket listener for real-time updates
+    const socket = io(SOCKET_URL, { withCredentials: true })
+
+    socket.on("commentCountUpdated", ({ postId, action }) => {
       setPosts((prevPosts) =>
         prevPosts.map((post) => {
           if (post._id === postId) {
@@ -150,22 +175,14 @@ function HomePage() {
           return post
         }),
       )
-    }
+    })
 
-    // Add event listener for post reactions
-    const handlePostReaction = (data) => {
-      const { postId, likes, dislikes } = data
+    socket.on("postReaction", ({ postId, likes, dislikes }) => {
       updateReactions(postId, { likes, dislikes })
-    }
-
-    // Set up event listeners
-    window.addEventListener("commentCountUpdated", handleCommentCountUpdate)
-    window.addEventListener("postReaction", handlePostReaction)
+    })
 
     return () => {
-      // Clean up event listeners
-      window.removeEventListener("commentCountUpdated", handleCommentCountUpdate)
-      window.removeEventListener("postReaction", handlePostReaction)
+      socket.disconnect()
     }
   }, [token, userId])
 
@@ -262,22 +279,34 @@ function HomePage() {
   const handleLike = async (postId, e) => {
     e.stopPropagation()
     try {
-      // Use the API service instead of direct fetch
-      const updatedPost = await postApi.likePost(postId)
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (!res.ok) throw new Error("Failed to like post")
+      const updatedPost = await res.json()
       updateReactions(postId, updatedPost)
     } catch (err) {
-      console.error("Error liking post:", err)
+      console.error(err)
     }
   }
 
   const handleDislike = async (postId, e) => {
     e.stopPropagation()
     try {
-      // Use the API service instead of direct fetch
-      const updatedPost = await postApi.dislikePost(postId)
+      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (!res.ok) throw new Error("Failed to dislike post")
+      const updatedPost = await res.json()
       updateReactions(postId, updatedPost)
     } catch (err) {
-      console.error("Error disliking post:", err)
+      console.error(err)
     }
   }
 
@@ -328,16 +357,27 @@ function HomePage() {
 
     setSavingCategories(true)
     try {
-      // Use the API service instead of direct fetch
-      await userApi.updateUserCategories(tempSelectedCategories)
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ categories: tempSelectedCategories }),
+      })
 
-      setSelectedCategories(tempSelectedCategories)
-      setEditingCategories(false)
-      // Update user profile with new categories
-      setUserProfile((prev) => ({
-        ...prev,
-        categories: tempSelectedCategories,
-      }))
+      if (response.ok) {
+        setSelectedCategories(tempSelectedCategories)
+        setEditingCategories(false)
+        // Update user profile with new categories
+        setUserProfile((prev) => ({
+          ...prev,
+          categories: tempSelectedCategories,
+        }))
+      } else {
+        const errorData = await response.json()
+        throw new Error(errorData.msg || "Failed to update categories")
+      }
     } catch (err) {
       console.error("Failed to save categories:", err)
       alert("Failed to save your categories. Please try again.")
@@ -472,10 +512,16 @@ function HomePage() {
     setLoading(true)
     try {
       // Fetch all posts for the user's feed
-      const response = await fetch(`${API_BASE_URL}/api/posts`)
+      const response = await fetch(`${API_BASE_URL}/api/posts`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
       if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`)
+        throw new Error("Failed to fetch posts")
       }
+
       const data = await response.json()
 
       // For the main feed, only show approved posts
@@ -483,20 +529,18 @@ function HomePage() {
       setPosts(approvedPosts)
 
       // Fetch user's own posts (including pending and rejected)
-      if (userId && token) {
-        const userPostsResponse = await fetch(`${API_BASE_URL}/api/posts/user`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
+      const userPostsResponse = await fetch(`${API_BASE_URL}/api/posts/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-        if (userPostsResponse.ok) {
-          const userPostsData = await userPostsResponse.json()
-          setMyPosts(userPostsData)
-        } else {
-          console.error("Failed to fetch user posts:", userPostsResponse.statusText)
-        }
+      if (!userPostsResponse.ok) {
+        throw new Error("Failed to fetch user posts")
       }
+
+      const userPostsData = await userPostsResponse.json()
+      setMyPosts(userPostsData)
     } catch (error) {
       console.error("Error fetching posts:", error)
       setError("Failed to load posts. Please try again later.")
@@ -545,14 +589,6 @@ function HomePage() {
                 My Posts
               </button>
             </div>
-
-            {/* Connection Status */}
-            {!isSocketConnected && (
-              <div className="alert alert-warning py-2 px-3 d-flex align-items-center">
-                <i className="bi bi-wifi-off me-2"></i>
-                <small>Connection issues detected</small>
-              </div>
-            )}
           </div>
         </div>
 
@@ -597,17 +633,6 @@ function HomePage() {
                     )}
                   </div>
                 </div>
-
-                {/* Error Message */}
-                {error && (
-                  <div className="alert alert-danger mb-4">
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                    {error}
-                    <button className="btn btn-sm btn-outline-danger ms-3" onClick={() => window.location.reload()}>
-                      Retry
-                    </button>
-                  </div>
-                )}
 
                 <div className="row">
                   <div className="col-lg-12">{renderPostCards()}</div>

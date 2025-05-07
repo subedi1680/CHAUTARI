@@ -9,7 +9,6 @@ import UserAvatar from "./UserAvatar"
 import UserContext from "./UserContext"
 import * as bootstrap from "bootstrap"
 import { API_BASE_URL } from "../config"
-import { useSocketStatus } from "../hooks/useSockets"
 
 const Header = () => {
   const location = useLocation()
@@ -25,7 +24,6 @@ const Header = () => {
   const userDropdownRef = useRef(null)
   const { userAvatar } = useContext(UserContext)
   const [userBanStatus, setUserBanStatus] = useState(null)
-  const isSocketConnected = useSocketStatus()
 
   // Check if current page is the landing page
   const isLandingPage = location.pathname === "/"
@@ -55,16 +53,9 @@ const Header = () => {
         } else {
           setUserBanStatus(null)
         }
-      } else if (response.status === 404) {
-        // Endpoint doesn't exist, silently ignore
-        console.log("Ban status endpoint not available")
-        setUserBanStatus(null)
-      } else {
-        console.error("Error checking ban status:", response.statusText)
       }
     } catch (error) {
       console.error("Error checking ban status:", error)
-      // Don't set any state on error to prevent UI disruption
     }
   }
 
@@ -77,9 +68,12 @@ const Header = () => {
       // If user just logged in, fetch notifications
       if (userSession.isAuthenticated() && !notificationsInitializedRef.current) {
         fetchNotifications()
+        connectToSocket()
         notificationsInitializedRef.current = true
         checkUserBanStatus()
-      } else if (!userSession.isAuthenticated()) {
+      } else if (!userSession.isAuthenticated() && socketRef.current) {
+        // Disconnect socket if not authenticated
+        socketRef.current.disconnect()
         notificationsInitializedRef.current = false
       }
     }
@@ -149,8 +143,22 @@ const Header = () => {
       window.removeEventListener("adminLoggedOut", checkAuth)
       window.removeEventListener("storage", checkAuth)
       document.removeEventListener("mousedown", handleClickOutside)
+
+      // Disconnect socket on unmount
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
     }
   }, [])
+
+  // Connect to socket for real-time notifications
+  const connectToSocket = () => {
+    const userId = userSession.getUserId()
+    if (!userId) return
+
+    // Implementation of socket connection
+    console.log("Socket connection would be established for user:", userId)
+  }
 
   // Fetch notifications from API
   const fetchNotifications = async () => {
@@ -330,12 +338,6 @@ const Header = () => {
                       <div className="small">
                         <strong>Account Restricted</strong>
                       </div>
-                    </div>
-                  )}
-                  {/* Connection Status Indicator */}
-                  {!isSocketConnected && (
-                    <div className="text-warning me-2" title="Connection issues detected">
-                      <i className="bi bi-wifi-off"></i>
                     </div>
                   )}
                   {/* Notification Bell */}
