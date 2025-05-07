@@ -15,6 +15,7 @@ import { categoryStructure } from "../utils/categoryData"
 import { io } from "socket.io-client"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000"
 
 function UserSettings() {
   const navigate = useNavigate()
@@ -84,7 +85,7 @@ function UserSettings() {
   // Add socket initialization effect
   useEffect(() => {
     if (token) {
-      const newSocket = io(API_BASE_URL, {
+      const newSocket = io(SOCKET_URL, {
         withCredentials: true,
         auth: {
           token: token,

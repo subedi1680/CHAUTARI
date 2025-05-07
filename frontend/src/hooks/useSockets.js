@@ -2,12 +2,13 @@
 
 import { useEffect } from "react"
 import { io } from "socket.io-client"
+import { SOCKET_URL } from "../config"
 
 let socket
 
 export function initSocket() {
   if (!socket) {
-    socket = io(import.meta.env.VITE_API_URL, {
+    socket = io(SOCKET_URL, {
       withCredentials: true,
     })
   }

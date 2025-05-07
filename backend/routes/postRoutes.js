@@ -8,7 +8,6 @@ const {
   updatePost,
   likePost,
   dislikePost,
-  searchPosts, // Import the searchPosts function
 } = require("../controllers/postController")
 const authMiddleware = require("../middlewares/authMiddleware")
 const multer = require("multer")
@@ -27,8 +26,5 @@ router.delete("/:id", authMiddleware, deletePost)
 // Reaction endpoints
 router.post("/:id/like", authMiddleware, likePost)
 router.post("/:id/dislike", authMiddleware, dislikePost)
-
-// Add this new route for search
-router.get("/search", authMiddleware, searchPosts)
 
 module.exports = router

@@ -1,3 +1,14 @@
+// Add this at the beginning of your server.js file
+const requiredEnvVars = ["MONGO_URI", "JWT_SECRET", "EMAIL_USER", "EMAIL_PASSWORD", "FRONTEND_URL"]
+
+const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar])
+
+if (missingEnvVars.length > 0) {
+  console.error("❌ Missing required environment variables:", missingEnvVars.join(", "))
+  console.error("Please check your .env file and make sure all required variables are set.")
+  process.exit(1)
+}
+
 // server.js
 
 const express = require("express")
@@ -41,7 +52,7 @@ function startServer() {
   // Set up Socket.io
   const io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: process.env.FRONTEND_URL || "*",
       methods: ["GET", "POST", "DELETE", "PUT"],
       credentials: true,
     },
@@ -109,7 +120,7 @@ function startServer() {
   // Middlewares
   app.use(
     cors({
-      origin: "*",
+      origin: process.env.FRONTEND_URL || "*",
       credentials: true,
     }),
   )
