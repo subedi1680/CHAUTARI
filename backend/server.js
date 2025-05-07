@@ -1,32 +1,42 @@
+// Load environment variables
+require("dotenv").config()
+
+// Import required modules
 const express = require("express")
+const mongoose = require("mongoose")
 const cors = require("cors")
-const connectDB = require("./config/db")
-const dotenv = require("dotenv")
 const path = require("path")
-const http = require("http")
-const socketIo = require("socket.io")
 const cookieParser = require("cookie-parser")
-const morgan = require("morgan")
+const http = require("http")
+const { Server } = require("socket.io")
 const helmet = require("helmet")
 const compression = require("compression")
 const rateLimit = require("express-rate-limit")
+const morgan = require("morgan")
 
-// Load environment variables
-dotenv.config()
-
-// Connect to database
-connectDB()
-
+// Create Express app
 const app = express()
 const server = http.createServer(app)
 
-// Set up Socket.IO
-const io = socketIo(server, {
+// Connect to MongoDB
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI)
+    console.log("✅ MongoDB Connected")
+  } catch (error) {
+    console.error("❌ MongoDB Connection Error:", error.message)
+    process.exit(1)
+  }
+}
+
+// Initialize Socket.io
+const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL || "*",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   },
+  pingTimeout: 60000,
 })
 
 // Middleware
@@ -45,48 +55,50 @@ app.use(helmet({ contentSecurityPolicy: false }))
 app.use(compression())
 
 // Rate limiting
-const limiter = rateLimit({
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again after 15 minutes",
 })
-app.use("/api/", limiter)
+app.use("/api/", apiLimiter)
 
 // Logging middleware in development
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"))
 }
 
-// Socket.IO connection handling
-io.on("connection", (socket) => {
-  console.log("New client connected")
-
-  // Handle authentication
-  socket.on("authenticate", (token) => {
-    // Verify token and associate socket with user
-    // This is a placeholder - implement actual token verification
-    console.log("User authenticated with socket")
-  })
-
-  // Handle disconnection
-  socket.on("disconnect", () => {
-    console.log("Client disconnected")
-  })
-})
-
 // Make io accessible to routes
 app.set("io", io)
 
+// Socket.IO connection handling
+io.on("connection", (socket) => {
+  console.log("New client connected:", socket.id)
+
+  const userId = socket.handshake.query.userId
+  if (userId) {
+    socket.join(userId)
+    console.log(`User ${userId} joined their private room`)
+  }
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id)
+  })
+})
+
 // Define routes
-app.use("/api/auth", require("./routes/authRoutes"))
-app.use("/api/users", require("./routes/userRoutes"))
-app.use("/api/posts", require("./routes/postRoutes"))
-app.use("/api/comments", require("./routes/commentRoutes"))
-app.use("/api/replies", require("./routes/replyRoutes"))
-app.use("/api/reports", require("./routes/reportRoutes"))
-app.use("/api/notifications", require("./routes/notificationRoutes"))
-app.use("/api/admin", require("./routes/adminRoutes"))
-app.use("/api/user-management", require("./routes/userManagementRoutes"))
+try {
+  app.use("/api/auth", require("./routes/authRoutes"))
+  app.use("/api/users", require("./routes/userRoutes"))
+  app.use("/api/posts", require("./routes/postRoutes"))
+  app.use("/api/comments", require("./routes/commentRoutes"))
+  app.use("/api/replies", require("./routes/replyRoutes"))
+  app.use("/api/notifications", require("./routes/notificationRoutes"))
+  app.use("/api/admin", require("./routes/adminRoutes"))
+  app.use("/api/reports", require("./routes/reportRoutes"))
+  app.use("/api/admin/users", require("./routes/userManagementRoutes"))
+} catch (error) {
+  console.error("Error loading routes:", error)
+}
 
 // Serve uploaded files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")))
@@ -98,7 +110,7 @@ app.get("/api/health", (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack)
+  console.error("Server Error:", err.stack)
   res.status(500).json({
     message: err.message || "Something went wrong on the server",
     stack: process.env.NODE_ENV === "production" ? "🥞" : err.stack,
@@ -120,13 +132,26 @@ if (process.env.NODE_ENV === "production") {
   })
 }
 
+// Start server
 const PORT = process.env.PORT || 5000
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+// Connect to database and start server
+connectDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`)
+  })
+})
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err) => {
   console.error(`Unhandled Rejection: ${err.message}`)
-  // Close server & exit process
+  // Don't exit the process, just log the error
   // server.close(() => process.exit(1))
+})
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (err) => {
+  console.error(`Uncaught Exception: ${err.message}`)
+  // Don't exit the process, just log the error
+  // process.exit(1)
 })
