@@ -1,5 +1,14 @@
-import { API_BASE_URL } from "../config"
+import { API_BASE_URL, API_TIMEOUT } from "../config"
 import { userSession, adminSession } from "./sessionManager"
+
+// Create a timeout promise
+const timeoutPromise = (ms) => {
+  return new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Request timed out after ${ms}ms`))
+    }, ms)
+  })
+}
 
 // Helper function to handle API errors
 const handleApiError = async (response) => {
@@ -22,6 +31,19 @@ const handleNetworkError = (error) => {
   throw new Error("Network error. Please check your connection and try again.")
 }
 
+// Helper function to make API requests with timeout
+const fetchWithTimeout = async (url, options = {}) => {
+  try {
+    const response = await Promise.race([fetch(url, options), timeoutPromise(API_TIMEOUT)])
+    return response
+  } catch (error) {
+    if (error.message.includes("timed out")) {
+      throw new Error("Request timed out. Please try again later.")
+    }
+    throw error
+  }
+}
+
 // User API service
 export const userApi = {
   // Get user profile
@@ -30,7 +52,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -47,7 +69,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/profile`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -67,7 +89,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/avatar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -86,7 +108,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/avatar`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -104,7 +126,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/password`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/password`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -124,7 +146,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/activity`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/activity`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -138,7 +160,7 @@ export const userApi = {
   // Get user's posts
   getUserPosts: async (userId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/posts`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/${userId}/posts`)
       return handleApiError(response)
     } catch (error) {
       return handleNetworkError(error)
@@ -151,7 +173,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/me/posts`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/me/posts`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -168,7 +190,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/me/saved`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/me/saved`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -185,7 +207,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/posts/${postId}/save`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/posts/${postId}/save`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -203,7 +225,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/posts/${postId}/saved`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/posts/${postId}/saved`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -220,7 +242,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/me/categories`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/me/categories`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -237,7 +259,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/me/categories`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/me/categories`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -257,7 +279,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/notifications`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/notifications`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -281,7 +303,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -306,7 +328,7 @@ export const userApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/notifications/read-all`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -328,7 +350,7 @@ export const userApi = {
   // Get user by ID (public profile)
   getUserById: async (userId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/${userId}`)
       return handleApiError(response)
     } catch (error) {
       console.error("Error fetching user data:", error)
@@ -339,7 +361,7 @@ export const userApi = {
   // Get user stats
   getUserStats: async (userId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/stats`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/${userId}/stats`)
       return handleApiError(response)
     } catch (error) {
       console.error("Error fetching user stats:", error)
@@ -359,7 +381,7 @@ export const userApi = {
       const userId = userSession.getUserId()
       if (!token || !userId) throw new Error("No authentication token or user ID")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/download-data`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/${userId}/download-data`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -377,7 +399,7 @@ export const userApi = {
       const userId = userSession.getUserId()
       if (!token || !userId) throw new Error("No authentication token or user ID")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/users/${userId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -402,7 +424,7 @@ export const postApi = {
         url += `&category=${category}`
       }
 
-      const response = await fetch(url)
+      const response = await fetchWithTimeout(url)
       return handleApiError(response)
     } catch (error) {
       console.error("Error fetching posts:", error)
@@ -413,7 +435,7 @@ export const postApi = {
   // Get post by ID
   getPostById: async (postId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}`)
       return handleApiError(response)
     } catch (error) {
       console.error("Error fetching post:", error)
@@ -427,7 +449,7 @@ export const postApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -447,7 +469,7 @@ export const postApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -467,7 +489,7 @@ export const postApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -485,7 +507,7 @@ export const postApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}/like`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -503,7 +525,7 @@ export const postApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -521,7 +543,7 @@ export const postApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/post/${postId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/reports/post/${postId}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -541,7 +563,7 @@ export const commentApi = {
   // Get comments for a post
   getComments: async (postId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}/comments`)
       return handleApiError(response)
     } catch (error) {
       console.error("Error fetching comments:", error)
@@ -555,7 +577,7 @@ export const commentApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/posts/${postId}/comments`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -575,7 +597,7 @@ export const commentApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/${commentId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -595,7 +617,7 @@ export const commentApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/${commentId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -613,7 +635,7 @@ export const commentApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/like`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/${commentId}/like`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -631,7 +653,7 @@ export const commentApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/dislike`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/${commentId}/dislike`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -649,7 +671,7 @@ export const commentApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/comment/${commentId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/reports/comment/${commentId}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -669,7 +691,7 @@ export const replyApi = {
   // Get replies for a comment
   getReplies: async (commentId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/${commentId}/replies`)
       return handleApiError(response)
     } catch (error) {
       console.error("Error fetching replies:", error)
@@ -683,7 +705,7 @@ export const replyApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/comments/${commentId}/replies`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -703,7 +725,7 @@ export const replyApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/replies/${replyId}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -723,7 +745,7 @@ export const replyApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/replies/${replyId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -741,7 +763,7 @@ export const replyApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}/like`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/replies/${replyId}/like`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -759,7 +781,7 @@ export const replyApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}/dislike`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/replies/${replyId}/dislike`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -777,7 +799,7 @@ export const replyApi = {
       const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/reports/reply/${replyId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/reports/reply/${replyId}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -797,7 +819,7 @@ export const authApi = {
   // Register new user
   register: async (userData) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -813,7 +835,7 @@ export const authApi = {
   // Login user
   login: async (credentials) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -829,7 +851,7 @@ export const authApi = {
   // Request password reset
   forgotPassword: async (email) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -845,7 +867,7 @@ export const authApi = {
   // Reset password with token
   resetPassword: async (token, newPassword) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -861,7 +883,7 @@ export const authApi = {
   // Verify email with token
   verifyEmail: async (token) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/verify-email/${token}`)
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/verify-email/${token}`)
       return handleApiError(response)
     } catch (error) {
       return handleNetworkError(error)
@@ -871,7 +893,7 @@ export const authApi = {
   // Resend verification email
   resendVerification: async (email) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/resend-verification`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/resend-verification`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -890,7 +912,7 @@ export const adminApi = {
   // Admin login
   login: async (credentials) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -909,7 +931,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/dashboard`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -938,7 +960,7 @@ export const adminApi = {
         url += `&status=${status}`
       }
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -956,7 +978,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/posts/${postId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -974,7 +996,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}/status`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/posts/${postId}/status`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -999,7 +1021,7 @@ export const adminApi = {
         url += `&status=${status}`
       }
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1017,7 +1039,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/reports/${reportId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1035,7 +1057,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}/status`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/reports/${reportId}/status`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1060,7 +1082,7 @@ export const adminApi = {
         url += `&query=${encodeURIComponent(query)}`
       }
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1078,7 +1100,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1096,7 +1118,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/ban`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${userId}/ban`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1116,7 +1138,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unban`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${userId}/unban`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1134,7 +1156,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/activity`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/users/${userId}/activity`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1152,7 +1174,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/settings`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/settings`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1170,7 +1192,7 @@ export const adminApi = {
       const token = adminSession.getToken()
       if (!token) throw new Error("No admin authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/settings`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/admin/settings`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -15,15 +15,18 @@ export function initSocket() {
         const token = userSession.getToken()
         const userId = userSession.getUserId()
 
+        // Create socket connection with proper configuration
         socket = io(SOCKET_URL, {
           withCredentials: true,
           reconnectionAttempts: 5,
           reconnectionDelay: 1000,
           timeout: 10000,
+          transports: ["websocket", "polling"], // Try websocket first, then polling
           query: {
             userId,
             token,
           },
+          autoConnect: true,
         })
 
         // Add error handling
@@ -53,6 +56,11 @@ export function initSocket() {
 
         socket.on("reconnect_failed", () => {
           console.error("Socket failed to reconnect")
+        })
+
+        // Add a connected event handler
+        socket.on("connected", (data) => {
+          console.log("Socket connected with ID:", data.socketId)
         })
       }
     } catch (err) {
