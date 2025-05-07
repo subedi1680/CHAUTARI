@@ -33,41 +33,51 @@ class ApiService {
       headers["Content-Type"] = "application/json"
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    })
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      })
 
-    // Handle 401 Unauthorized errors
-    if (response.status === 401) {
-      // Clear session
-      if (isAdmin) {
-        adminSession.clear()
-      } else {
-        userSession.clear()
+      // Handle 401 Unauthorized errors
+      if (response.status === 401) {
+        // Clear session
+        if (isAdmin) {
+          adminSession.clear()
+        } else {
+          userSession.clear()
+        }
+
+        throw new Error("Session expired. Please log in again.")
       }
 
-      throw new Error("Session expired. Please log in again.")
-    }
+      // Parse response
+      let data
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await response.json()
+        } catch (e) {
+          console.error("Error parsing JSON response:", e)
+          data = { msg: "Invalid response format" }
+        }
+      } else {
+        data = await response.text()
+      }
 
-    // Parse response
-    let data
-    const contentType = response.headers.get("content-type")
-    if (contentType && contentType.includes("application/json")) {
-      data = await response.json()
-    } else {
-      data = await response.text()
-    }
+      // Handle unsuccessful responses
+      if (!response.ok) {
+        const error = new Error(data.msg || "API request failed")
+        error.status = response.status
+        error.data = data
+        throw error
+      }
 
-    // Handle unsuccessful responses
-    if (!response.ok) {
-      const error = new Error(data.msg || "API request failed")
-      error.status = response.status
-      error.data = data
+      return data
+    } catch (error) {
+      console.error(`API request failed for ${url}:`, error)
       throw error
     }
-
-    return data
   }
 
   /**
@@ -85,29 +95,39 @@ class ApiService {
       headers["Content-Type"] = "application/json"
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    })
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      })
 
-    // Parse response
-    let data
-    const contentType = response.headers.get("content-type")
-    if (contentType && contentType.includes("application/json")) {
-      data = await response.json()
-    } else {
-      data = await response.text()
-    }
+      // Parse response
+      let data
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          data = await response.json()
+        } catch (e) {
+          console.error("Error parsing JSON response:", e)
+          data = { msg: "Invalid response format" }
+        }
+      } else {
+        data = await response.text()
+      }
 
-    // Handle unsuccessful responses
-    if (!response.ok) {
-      const error = new Error(data.msg || "API request failed")
-      error.status = response.status
-      error.data = data
+      // Handle unsuccessful responses
+      if (!response.ok) {
+        const error = new Error(data.msg || "API request failed")
+        error.status = response.status
+        error.data = data
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error(`API request failed for ${url}:`, error)
       throw error
     }
-
-    return data
   }
 }
 

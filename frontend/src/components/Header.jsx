@@ -53,9 +53,16 @@ const Header = () => {
         } else {
           setUserBanStatus(null)
         }
+      } else if (response.status === 404) {
+        // Endpoint doesn't exist, silently ignore
+        console.log("Ban status endpoint not available")
+        setUserBanStatus(null)
+      } else {
+        console.error("Error checking ban status:", response.statusText)
       }
     } catch (error) {
       console.error("Error checking ban status:", error)
+      // Don't set any state on error to prevent UI disruption
     }
   }
 
