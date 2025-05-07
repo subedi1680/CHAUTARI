@@ -6,7 +6,6 @@ import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap-icons/font/bootstrap-icons.css"
 import { useState, useEffect, useContext } from "react"
 import { useNavigate } from "react-router-dom"
-import { io } from "socket.io-client"
 import { categoryStructure } from "../utils/categoryData"
 import { userApi, postApi } from "../utils/apiService"
 import "./Home.css"
@@ -15,9 +14,9 @@ import "./Home.css"
 import "bootstrap/dist/js/bootstrap.bundle.min.js"
 import UserAvatar from "../components/UserAvatar"
 import UserContext from "../components/UserContext"
+import { useSocketStatus } from "../hooks/useSockets"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
 
 const formatTimeAgo = (dateString) => {
   const date = new Date(dateString)
@@ -56,6 +55,7 @@ function HomePage() {
   const navigate = useNavigate()
   const { userAvatar } = useContext(UserContext)
   const [error, setError] = useState(null)
+  const isSocketConnected = useSocketStatus()
 
   // Add search state
   const [searchQuery, setSearchQuery] = useState("")
@@ -126,56 +126,46 @@ function HomePage() {
     })
     setAvailableCategories(allCategories)
 
-    // Socket listener for real-time updates
-    let socket
-    try {
-      socket = io(SOCKET_URL, {
-        withCredentials: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        timeout: 10000,
-      })
+    // Add event listener for comment count updates
+    const handleCommentCountUpdate = (data) => {
+      const { postId, action } = data
+      setPosts((prevPosts) =>
+        prevPosts.map((post) => {
+          if (post._id === postId) {
+            let updatedCount = post.commentCount || 0
+            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
+            return { ...post, commentCount: updatedCount }
+          }
+          return post
+        }),
+      )
 
-      socket.on("connect_error", (err) => {
-        console.warn("Socket connection error:", err.message)
-      })
-
-      socket.on("commentCountUpdated", ({ postId, action }) => {
-        setPosts((prevPosts) =>
-          prevPosts.map((post) => {
-            if (post._id === postId) {
-              let updatedCount = post.commentCount || 0
-              updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
-              return { ...post, commentCount: updatedCount }
-            }
-            return post
-          }),
-        )
-
-        setMyPosts((prevPosts) =>
-          prevPosts.map((post) => {
-            if (post._id === postId) {
-              let updatedCount = post.commentCount || 0
-              updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
-              return { ...post, commentCount: updatedCount }
-            }
-            return post
-          }),
-        )
-      })
-
-      socket.on("postReaction", ({ postId, likes, dislikes }) => {
-        updateReactions(postId, { likes, dislikes })
-      })
-    } catch (err) {
-      console.error("Socket connection error:", err)
+      setMyPosts((prevPosts) =>
+        prevPosts.map((post) => {
+          if (post._id === postId) {
+            let updatedCount = post.commentCount || 0
+            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
+            return { ...post, commentCount: updatedCount }
+          }
+          return post
+        }),
+      )
     }
 
+    // Add event listener for post reactions
+    const handlePostReaction = (data) => {
+      const { postId, likes, dislikes } = data
+      updateReactions(postId, { likes, dislikes })
+    }
+
+    // Set up event listeners
+    window.addEventListener("commentCountUpdated", handleCommentCountUpdate)
+    window.addEventListener("postReaction", handlePostReaction)
+
     return () => {
-      if (socket) {
-        socket.disconnect()
-      }
+      // Clean up event listeners
+      window.removeEventListener("commentCountUpdated", handleCommentCountUpdate)
+      window.removeEventListener("postReaction", handlePostReaction)
     }
   }, [token, userId])
 
@@ -339,7 +329,7 @@ function HomePage() {
     setSavingCategories(true)
     try {
       // Use the API service instead of direct fetch
-      await userApi.updateCategories(tempSelectedCategories)
+      await userApi.updateUserCategories(tempSelectedCategories)
 
       setSelectedCategories(tempSelectedCategories)
       setEditingCategories(false)
@@ -481,16 +471,32 @@ function HomePage() {
   const fetchPosts = async () => {
     setLoading(true)
     try {
-      // Fetch all posts for the user's feed using API service
-      const data = await postApi.getAllPosts()
+      // Fetch all posts for the user's feed
+      const response = await fetch(`${API_BASE_URL}/api/posts`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`)
+      }
+      const data = await response.json()
 
       // For the main feed, only show approved posts
       const approvedPosts = data.filter((post) => post.status === "approved")
       setPosts(approvedPosts)
 
-      // Fetch user's own posts (including pending and rejected) using API service
-      const userPostsData = await postApi.getUserPosts()
-      setMyPosts(userPostsData)
+      // Fetch user's own posts (including pending and rejected)
+      if (userId && token) {
+        const userPostsResponse = await fetch(`${API_BASE_URL}/api/posts/user`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (userPostsResponse.ok) {
+          const userPostsData = await userPostsResponse.json()
+          setMyPosts(userPostsData)
+        } else {
+          console.error("Failed to fetch user posts:", userPostsResponse.statusText)
+        }
+      }
     } catch (error) {
       console.error("Error fetching posts:", error)
       setError("Failed to load posts. Please try again later.")
@@ -539,6 +545,14 @@ function HomePage() {
                 My Posts
               </button>
             </div>
+
+            {/* Connection Status */}
+            {!isSocketConnected && (
+              <div className="alert alert-warning py-2 px-3 d-flex align-items-center">
+                <i className="bi bi-wifi-off me-2"></i>
+                <small>Connection issues detected</small>
+              </div>
+            )}
           </div>
         </div>
 
@@ -583,6 +597,17 @@ function HomePage() {
                     )}
                   </div>
                 </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="alert alert-danger mb-4">
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    {error}
+                    <button className="btn btn-sm btn-outline-danger ms-3" onClick={() => window.location.reload()}>
+                      Retry
+                    </button>
+                  </div>
+                )}
 
                 <div className="row">
                   <div className="col-lg-12">{renderPostCards()}</div>
