@@ -5,7 +5,7 @@
 import "bootstrap/dist/css/bootstrap.min.css"
 import "bootstrap-icons/font/bootstrap-icons.css"
 import { useState, useEffect, useContext } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { io } from "socket.io-client"
 import { categoryStructure } from "../utils/categoryData"
 import "./Home.css"
@@ -56,11 +56,52 @@ function HomePage() {
   const { userAvatar } = useContext(UserContext)
   const [error, setError] = useState(null)
 
-  // Add search state
-  const [searchQuery, setSearchQuery] = useState("")
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const urlSearchQuery = searchParams.get("search") || ""
 
   const token = sessionStorage.getItem("token")
   const userId = sessionStorage.getItem("userId")
+
+  // Effect to handle search query changes from URL
+  useEffect(() => {
+    if (urlSearchQuery) {
+      // If there's a search query in the URL, fetch all posts and filter them
+      fetchAllPostsForSearch(urlSearchQuery)
+    }
+  }, [urlSearchQuery])
+
+  // Fetch all posts for search
+  const fetchAllPostsForSearch = async (query) => {
+    if (!token) return
+
+    setLoading(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/posts/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Authorization: `Bearer ${token}\`,  {
+        headers: {
+          Authorization: \`Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPosts(data)
+
+        // Also filter my posts if we're in that tab
+        const myFilteredPosts = data.filter((post) => post.user?._id === userId)
+        setMyPosts(myFilteredPosts)
+      } else {
+        console.error("Search failed:", response.statusText)
+      }
+    } catch (error) {
+      console.error("Error searching posts:", error)
+      setError("Failed to search posts. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     // Fetch user categories on page load
@@ -81,12 +122,15 @@ function HomePage() {
             sessionStorage.setItem("username", userData.username || "")
 
             // Now fetch posts after categories are loaded
-            fetchPosts()
+            if (!urlSearchQuery) {
+              fetchPosts()
+            }
+
             const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
             if (!postsResponse.ok) {
               throw new Error("Failed to fetch posts")
             }
-            const postsData = await postsResponse.json()
+            const postsData = await response.json()
             if (!Array.isArray(postsData)) {
               throw new Error("Invalid response format from server")
             }
@@ -138,7 +182,9 @@ function HomePage() {
       }
     }
 
-    fetchData()
+    if (!urlSearchQuery) {
+      fetchData()
+    }
 
     // Prepare available categories from categoryStructure
     const allCategories = []
@@ -319,8 +365,8 @@ function HomePage() {
       categoryFilter === "all" ? postsToFilter : postsToFilter.filter((post) => post.category === categoryFilter)
 
     // Then filter by search query if it exists
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
+    if (urlSearchQuery.trim()) {
+      const query = urlSearchQuery.toLowerCase().trim()
       return filteredByCategory.filter(
         (post) =>
           post.title?.toLowerCase().includes(query) ||
@@ -386,16 +432,6 @@ function HomePage() {
     }
   }
 
-  // Handle search input change
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value)
-  }
-
-  // Clear search
-  const clearSearch = () => {
-    setSearchQuery("")
-  }
-
   // Function to render post cards
   const renderPostCards = () => {
     const filteredPosts = getFilteredPosts()
@@ -417,10 +453,10 @@ function HomePage() {
             <i className="bi bi-journal-text text-secondary" style={{ fontSize: "4rem" }}></i>
           </div>
           <h4 className="text-secondary">No posts available</h4>
-          {searchQuery ? (
+          {urlSearchQuery ? (
             <>
               <p className="text-muted">No posts match your search criteria.</p>
-              <button className="btn btn-secondary mt-2" onClick={clearSearch}>
+              <button className="btn btn-secondary mt-2" onClick={() => navigate("/home")}>
                 Clear Search
               </button>
             </>
@@ -611,27 +647,17 @@ function HomePage() {
                       </span>
                     )}
                   </h4>
-                </div>
-
-                {/* Search Bar */}
-                <div className="mb-4">
-                  <div className="input-group">
-                    <span className="input-group-text bg-white border-end-0">
-                      <i className="bi bi-search"></i>
-                    </span>
-                    <input
-                      type="text"
-                      className="form-control border-start-0"
-                      placeholder="Search posts by title, content, category or author..."
-                      value={searchQuery}
-                      onChange={handleSearchChange}
-                    />
-                    {searchQuery && (
-                      <button className="btn btn-outline-secondary border-start-0" type="button" onClick={clearSearch}>
-                        <i className="bi bi-x-lg"></i>
+                  {urlSearchQuery && (
+                    <div className="d-flex align-items-center">
+                      <span className="badge bg-primary me-2">
+                        <i className="bi bi-search me-1"></i>
+                        Search: {urlSearchQuery}
+                      </span>
+                      <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate("/home")}>
+                        <i className="bi bi-x"></i> Clear
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="row">

@@ -1,21 +1,11 @@
 const mongoose = require("mongoose")
 const Post = require("../models/Post")
 const User = require("../models/User") // Import User model
-const fs = require("fs")
-const path = require("path")
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id)
 
-// @desc    Create a new post
-// @route   POST /api/posts
-// @access  Private
+// Create a new post
 const createPost = async (req, res) => {
-  const { title, content, category } = req.body
-
-  if (!title || !content || !category) {
-    return res.status(400).json({ msg: "Title, content, and category are required" })
-  }
-
   try {
     // Check if user is banned
     const user = await User.findById(req.user.id)
@@ -36,158 +26,94 @@ const createPost = async (req, res) => {
       })
     }
 
-    // Create new post
-    const newPost = new Post({
-      title,
-      content,
-      category,
-      user: req.user.id,
-      status: "pending", // All posts start as pending for moderation
-    })
+    const { title, content, category } = req.body
 
-    // If there's an image, add it to the post
-    if (req.file) {
-      newPost.image = `/uploads/${req.file.filename}`
+    if (!title || !content || !category) {
+      return res.status(400).json({ msg: "Title, category, and content are required" })
     }
 
-    await newPost.save()
+    try {
+      const coverImage = req.file ? req.file.buffer.toString("base64") : null
 
-    // Populate user info
-    await newPost.populate("user", ["username", "avatar"])
-
-    // Notify admins about new post
-    const io = req.app.get("io")
-    if (io) {
-      io.to("admins").emit("newPost", {
-        postId: newPost._id,
-        title: newPost.title,
-        username: req.user.username,
+      const post = new Post({
+        title,
+        content,
+        category,
+        coverImage,
+        user: req.user.id,
+        status: "pending", // Set status to pending by default
       })
-    }
 
-    res.status(201).json(newPost)
+      await post.save()
+
+      // Notify admins about new post (you could implement this)
+
+      res.status(201).json(post)
+    } catch (err) {
+      console.error("Post creation error:", err.message)
+      res.status(500).json({ msg: "Server Error" })
+    }
   } catch (err) {
-    console.error("Error creating post:", err.message)
-    res.status(500).json({ msg: "Server Error" })
+    console.error("Error checking ban status:", err.message)
+    return res.status(500).json({ msg: "Server Error" })
   }
 }
 
-// @desc    Get all approved posts
-// @route   GET /api/posts
-// @access  Public
+// Modify the getPosts function to only return approved posts for regular users
 const getPosts = async (req, res) => {
   try {
-    const { category, search, sort = "latest" } = req.query
-
-    // Build query
-    const query = { status: "approved" }
-
-    // Add category filter if provided
-    if (category && category !== "all") {
-      query.category = category
-    }
-
-    // Add search filter if provided
-    if (search) {
-      query.$or = [{ title: { $regex: search, $options: "i" } }, { content: { $regex: search, $options: "i" } }]
-    }
-
-    // Determine sort order
-    let sortOption = {}
-    switch (sort) {
-      case "oldest":
-        sortOption = { createdAt: 1 }
-        break
-      case "most-commented":
-        sortOption = { commentCount: -1, createdAt: -1 }
-        break
-      case "most-liked":
-        sortOption = { likeCount: -1, createdAt: -1 }
-        break
-      default:
-        // latest
-        sortOption = { createdAt: -1 }
-    }
-
-    const posts = await Post.find(query).sort(sortOption).populate("user", ["username", "avatar"]).populate({
-      path: "comments",
-      select: "_id",
-    })
-
-    res.json(posts)
-  } catch (err) {
-    console.error("Error fetching posts:", err.message)
-    res.status(500).json({ msg: "Server Error" })
-  }
-}
-
-// @desc    Get posts for user's feed (based on preferred categories)
-// @route   GET /api/posts/feed
-// @access  Private
-const getFeedPosts = async (req, res) => {
-  try {
-    // Get user's preferred categories
-    const user = await User.findById(req.user.id)
-    const preferredCategories = user.preferredCategories || []
-
-    // Build query - include posts from preferred categories and some general posts
-    let query = { status: "approved" }
-
-    // If user has preferred categories, prioritize those
-    if (preferredCategories.length > 0) {
-      query = {
-        $or: [{ category: { $in: preferredCategories } }, { category: "general" }],
-        status: "approved",
-      }
-    }
-
-    const posts = await Post.find(query)
-      .sort({ createdAt: -1 })
-      .limit(50) // Limit to 50 posts for performance
-      .populate("user", ["username", "avatar"])
+    const posts = await Post.find({ status: "approved" })
+      .populate("user", ["username", "avatar"]) // Add avatar to the populated fields
       .populate({
         path: "comments",
         select: "_id",
       })
+      .sort({ createdAt: -1 })
 
     res.json(posts)
   } catch (err) {
-    console.error("Error fetching feed posts:", err.message)
+    console.error("Failed to fetch posts:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
 }
 
-// @desc    Get a single post
-// @route   GET /api/posts/:id
-// @access  Public
+// Modify the getPostById function to check post status
 const getPostById = async (req, res) => {
+  const { id } = req.params
+
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ msg: "Invalid Post ID" })
+  }
+
   try {
-    const post = await Post.findById(req.params.id)
-      .populate("user", ["username", "avatar", "bio"])
+    const post = await Post.findById(id)
+      .populate("user", ["username", "avatar"]) // Add avatar to the populated fields
       .populate({
         path: "comments",
-        populate: {
-          path: "user",
-          select: "username avatar",
-        },
+        select: "_id",
       })
 
     if (!post) {
       return res.status(404).json({ msg: "Post not found" })
     }
 
-    // If post is not approved and user is not the author, don't show it
-    if (post.status !== "approved" && (!req.user || post.user._id.toString() !== req.user.id)) {
-      return res.status(404).json({ msg: "Post not found or pending approval" })
-    }
+    // If post is not approved, only allow the author or admins to view it
+    if (post.status !== "approved") {
+      // Check if the request includes user info (authenticated)
+      const userId = req.user ? req.user.id : null
 
-    // Increment view count
-    post.views += 1
-    await post.save()
+      // If not the author, return error
+      if (!userId || post.user._id.toString() !== userId) {
+        return res.status(403).json({
+          msg: "This post is not yet approved and can only be viewed by the author",
+          status: post.status,
+        })
+      }
+    }
 
     res.json(post)
   } catch (err) {
-    console.error("Error fetching post:", err.message)
+    console.error("Failed to fetch post:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
 }
@@ -210,201 +136,89 @@ const getUserPosts = async (req, res) => {
   }
 }
 
-// @desc    Update a post
-// @route   PUT /api/posts/:id
-// @access  Private
-const updatePost = async (req, res) => {
-  const { title, content, category } = req.body
-
-  try {
-    let post = await Post.findById(req.params.id)
-
-    if (!post) {
-      return res.status(404).json({ msg: "Post not found" })
-    }
-
-    // Check if user is the post author
-    if (post.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: "Not authorized to update this post" })
-    }
-
-    // Build update object
-    const updateFields = {}
-    if (title) updateFields.title = title
-    if (content) updateFields.content = content
-    if (category) updateFields.category = category
-
-    // If post was already approved, set it back to pending for re-moderation
-    if (post.status === "approved") {
-      updateFields.status = "pending"
-    }
-
-    // If there's a new image
-    if (req.file) {
-      // Delete old image if it exists
-      if (post.image) {
-        const oldImagePath = path.join(__dirname, "..", post.image)
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath)
-        }
-      }
-      updateFields.image = `/uploads/${req.file.filename}`
-    }
-
-    // Update post
-    post = await Post.findByIdAndUpdate(req.params.id, { $set: updateFields }, { new: true }).populate("user", [
-      "username",
-      "avatar",
-    ])
-
-    // Notify admins about updated post that needs re-moderation
-    if (updateFields.status === "pending") {
-      const io = req.app.get("io")
-      if (io) {
-        io.to("admins").emit("postUpdated", {
-          postId: post._id,
-          title: post.title,
-          username: req.user.username,
-        })
-      }
-    }
-
-    res.json(post)
-  } catch (err) {
-    console.error("Error updating post:", err.message)
-    res.status(500).json({ msg: "Server Error" })
-  }
-}
-
-// @desc    Delete a post
-// @route   DELETE /api/posts/:id
-// @access  Private
+// Delete a post
 const deletePost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
+  const { id } = req.params
 
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ msg: "Invalid Post ID" })
+  }
+
+  try {
+    const post = await Post.findById(id)
     if (!post) {
       return res.status(404).json({ msg: "Post not found" })
     }
 
-    // Check if user is the post author
     if (post.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: "Not authorized to delete this post" })
+      return res.status(403).json({ msg: "Unauthorized to delete this post" })
     }
 
-    // Delete image if it exists
-    if (post.image) {
-      const imagePath = path.join(__dirname, "..", post.image)
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath)
-      }
-    }
+    // Delete all comments associated with this post
+    const Comment = require("../models/Comment")
+    await Comment.deleteMany({ post: id })
 
-    // Delete post
+    // Delete all replies to comments on this post
+    const Reply = require("../models/Reply")
+    const comments = await Comment.find({ post: id }).select("_id")
+    const commentIds = comments.map((comment) => comment._id)
+    await Reply.deleteMany({ comment: { $in: commentIds } })
+
+    // Delete all notifications related to this post
+    const notificationController = require("./notificationController")
+    await notificationController.deleteRelatedNotifications({ postId: id })
+
+    // Delete the post
     await post.deleteOne()
 
-    res.json({ msg: "Post deleted" })
+    // Emit event to inform clients
+    if (req.io) {
+      req.io.emit("postDeleted", { postId: id })
+    }
+
+    res.json({ msg: "Post deleted successfully" })
   } catch (err) {
-    console.error("Error deleting post:", err.message)
+    console.error("Error deleting post:", err)
     res.status(500).json({ msg: "Server Error" })
   }
 }
 
-// @desc    Like/unlike a post
-// @route   PUT /api/posts/:id/like
-// @access  Private
-const toggleLikePost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
+// Update a post
+const updatePost = async (req, res) => {
+  const { id } = req.params
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ msg: "Invalid Post ID" })
+  }
 
+  try {
+    const post = await Post.findById(id)
     if (!post) {
       return res.status(404).json({ msg: "Post not found" })
     }
 
-    // Check if post is already liked by this user
-    const likeIndex = post.likes.findIndex((like) => like.user.toString() === req.user.id)
-
-    if (likeIndex === -1) {
-      // Not liked, so add like
-      post.likes.push({ user: req.user.id })
-      post.likeCount = post.likes.length
-      await post.save()
-
-      // Notify post author if it's not their own post
-      if (post.user.toString() !== req.user.id) {
-        try {
-          const notificationController = require("./notificationController")
-          const notificationData = {
-            recipient: post.user,
-            type: "like",
-            content: `${req.user.username} liked your post "${post.title}"`,
-            relatedPost: post._id,
-            sender: req.user.id,
-          }
-          await notificationController.createNotification(notificationData)
-        } catch (notifError) {
-          console.error("Error creating like notification:", notifError)
-        }
-      }
-
-      return res.json({ liked: true, likeCount: post.likeCount })
-    } else {
-      // Already liked, so remove like
-      post.likes.splice(likeIndex, 1)
-      post.likeCount = post.likes.length
-      await post.save()
-      return res.json({ liked: false, likeCount: post.likeCount })
-    }
-  } catch (err) {
-    console.error("Error toggling like:", err.message)
-    res.status(500).json({ msg: "Server Error" })
-  }
-}
-
-// @desc    Check if a post is liked by current user
-// @route   GET /api/posts/:id/like
-// @access  Private
-const checkPostLiked = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
-
-    if (!post) {
-      return res.status(404).json({ msg: "Post not found" })
+    if (post.user.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "Unauthorized to edit this post" })
     }
 
-    const liked = post.likes.some((like) => like.user.toString() === req.user.id)
-    res.json({ liked, likeCount: post.likeCount })
+    if (req.body.title) post.title = req.body.title
+    if (req.body.content) post.content = req.body.content
+    if (req.body.category) post.category = req.body.category
+    if (req.file) {
+      post.coverImage = req.file.buffer.toString("base64")
+    }
+
+    post.edited = true
+    post.editedAt = Date.now()
+
+    // If post was already approved, set it back to pending for re-review
+    if (post.status === "approved") {
+      post.status = "pending"
+    }
+
+    await post.save()
+    res.json({ msg: "Post updated successfully", post })
   } catch (err) {
-    console.error("Error checking like status:", err.message)
-    res.status(500).json({ msg: "Server Error" })
-  }
-}
-
-// @desc    Get trending posts
-// @route   GET /api/posts/trending
-// @access  Public
-const getTrendingPosts = async (req, res) => {
-  try {
-    // Get posts from the last 7 days
-    const oneWeekAgo = new Date()
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-
-    // Find approved posts, sort by engagement (likes + comments + views)
-    const posts = await Post.find({
-      status: "approved",
-      createdAt: { $gte: oneWeekAgo },
-    })
-      .sort({ likeCount: -1, commentCount: -1, views: -1 })
-      .limit(10)
-      .populate("user", ["username", "avatar"])
-      .populate({
-        path: "comments",
-        select: "_id",
-      })
-
-    res.json(posts)
-  } catch (err) {
-    console.error("Error fetching trending posts:", err.message)
+    console.error("Error updating post:", err.message)
     res.status(500).json({ msg: "Server Error" })
   }
 }
@@ -593,8 +407,4 @@ module.exports = {
   updatePost,
   likePost,
   dislikePost,
-  toggleLikePost,
-  checkPostLiked,
-  getFeedPosts,
-  getTrendingPosts,
 }
