@@ -8,6 +8,7 @@ import { useState, useEffect, useContext } from "react"
 import { useNavigate } from "react-router-dom"
 import { io } from "socket.io-client"
 import { categoryStructure } from "../utils/categoryData"
+import { userApi, postApi } from "../utils/apiService"
 import "./Home.css"
 
 // Add these imports at the top of the file, after the existing imports
@@ -68,46 +69,22 @@ function HomePage() {
       if (userId && token) {
         try {
           setLoading(true)
-          const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+          // Use the API service instead of direct fetch
+          const userData = await userApi.getProfile().catch((err) => {
+            console.error("Error fetching user profile:", err)
+            return { categories: [] }
           })
-          if (response.ok) {
-            const userData = await response.json()
-            setUserProfile(userData)
-            setSelectedCategories(userData.categories || [])
-            setTempSelectedCategories(userData.categories || [])
-            sessionStorage.setItem("username", userData.username || "")
 
-            // Now fetch posts after categories are loaded
-            fetchPosts()
-            const postsResponse = await fetch(`${API_BASE_URL}/api/posts`)
-            if (!postsResponse.ok) {
-              throw new Error("Failed to fetch posts")
-            }
-            const postsData = await postsResponse.json()
-            if (!Array.isArray(postsData)) {
-              throw new Error("Invalid response format from server")
-            }
+          setUserProfile(userData)
+          setSelectedCategories(userData.categories || [])
+          setTempSelectedCategories(userData.categories || [])
+          sessionStorage.setItem("username", userData.username || "")
 
-            // Filter posts based on selected categories
-            const filteredPosts =
-              userData.categories && userData.categories.length > 0
-                ? postsData.filter((post) => userData.categories.includes(post.category))
-                : postsData
-
-            // Also filter out the user's own posts for the "My Posts" tab
-            const userPosts = postsData.filter((post) => post.user?._id === userId)
-
-            const sortedPosts = filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            const sortedMyPosts = userPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-
-            setPosts(sortedPosts)
-            setMyPosts(sortedMyPosts)
-          }
+          // Now fetch posts after categories are loaded
+          fetchPosts()
         } catch (err) {
           console.error("Error fetching data:", err)
+          setError("Failed to load user data. Please try again later.")
         } finally {
           setLoading(false)
         }
@@ -120,11 +97,9 @@ function HomePage() {
     const fetchAllPosts = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`${API_BASE_URL}/api/posts`)
-        if (!response.ok) {
-          throw new Error("Failed to fetch posts")
-        }
-        const data = await response.json()
+        // Use the API service instead of direct fetch
+        const data = await postApi.getAllPosts()
+
         if (!Array.isArray(data)) {
           throw new Error("Invalid response format from server")
         }
@@ -133,6 +108,7 @@ function HomePage() {
         setPosts(sortedPosts)
       } catch (err) {
         console.error("Failed to fetch posts:", err)
+        setError("Failed to load posts. Please try again later.")
       } finally {
         setLoading(false)
       }
@@ -151,38 +127,55 @@ function HomePage() {
     setAvailableCategories(allCategories)
 
     // Socket listener for real-time updates
-    const socket = io(SOCKET_URL, { withCredentials: true })
+    let socket
+    try {
+      socket = io(SOCKET_URL, {
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 10000,
+      })
 
-    socket.on("commentCountUpdated", ({ postId, action }) => {
-      setPosts((prevPosts) =>
-        prevPosts.map((post) => {
-          if (post._id === postId) {
-            let updatedCount = post.commentCount || 0
-            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
-            return { ...post, commentCount: updatedCount }
-          }
-          return post
-        }),
-      )
+      socket.on("connect_error", (err) => {
+        console.warn("Socket connection error:", err.message)
+      })
 
-      setMyPosts((prevPosts) =>
-        prevPosts.map((post) => {
-          if (post._id === postId) {
-            let updatedCount = post.commentCount || 0
-            updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
-            return { ...post, commentCount: updatedCount }
-          }
-          return post
-        }),
-      )
-    })
+      socket.on("commentCountUpdated", ({ postId, action }) => {
+        setPosts((prevPosts) =>
+          prevPosts.map((post) => {
+            if (post._id === postId) {
+              let updatedCount = post.commentCount || 0
+              updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
+              return { ...post, commentCount: updatedCount }
+            }
+            return post
+          }),
+        )
 
-    socket.on("postReaction", ({ postId, likes, dislikes }) => {
-      updateReactions(postId, { likes, dislikes })
-    })
+        setMyPosts((prevPosts) =>
+          prevPosts.map((post) => {
+            if (post._id === postId) {
+              let updatedCount = post.commentCount || 0
+              updatedCount = action === "add" ? updatedCount + 1 : Math.max(0, updatedCount - 1)
+              return { ...post, commentCount: updatedCount }
+            }
+            return post
+          }),
+        )
+      })
+
+      socket.on("postReaction", ({ postId, likes, dislikes }) => {
+        updateReactions(postId, { likes, dislikes })
+      })
+    } catch (err) {
+      console.error("Socket connection error:", err)
+    }
 
     return () => {
-      socket.disconnect()
+      if (socket) {
+        socket.disconnect()
+      }
     }
   }, [token, userId])
 
@@ -279,34 +272,22 @@ function HomePage() {
   const handleLike = async (postId, e) => {
     e.stopPropagation()
     try {
-      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (!res.ok) throw new Error("Failed to like post")
-      const updatedPost = await res.json()
+      // Use the API service instead of direct fetch
+      const updatedPost = await postApi.likePost(postId)
       updateReactions(postId, updatedPost)
     } catch (err) {
-      console.error(err)
+      console.error("Error liking post:", err)
     }
   }
 
   const handleDislike = async (postId, e) => {
     e.stopPropagation()
     try {
-      const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (!res.ok) throw new Error("Failed to dislike post")
-      const updatedPost = await res.json()
+      // Use the API service instead of direct fetch
+      const updatedPost = await postApi.dislikePost(postId)
       updateReactions(postId, updatedPost)
     } catch (err) {
-      console.error(err)
+      console.error("Error disliking post:", err)
     }
   }
 
@@ -357,27 +338,16 @@ function HomePage() {
 
     setSavingCategories(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ categories: tempSelectedCategories }),
-      })
+      // Use the API service instead of direct fetch
+      await userApi.updateCategories(tempSelectedCategories)
 
-      if (response.ok) {
-        setSelectedCategories(tempSelectedCategories)
-        setEditingCategories(false)
-        // Update user profile with new categories
-        setUserProfile((prev) => ({
-          ...prev,
-          categories: tempSelectedCategories,
-        }))
-      } else {
-        const errorData = await response.json()
-        throw new Error(errorData.msg || "Failed to update categories")
-      }
+      setSelectedCategories(tempSelectedCategories)
+      setEditingCategories(false)
+      // Update user profile with new categories
+      setUserProfile((prev) => ({
+        ...prev,
+        categories: tempSelectedCategories,
+      }))
     } catch (err) {
       console.error("Failed to save categories:", err)
       alert("Failed to save your categories. Please try again.")
@@ -511,35 +481,15 @@ function HomePage() {
   const fetchPosts = async () => {
     setLoading(true)
     try {
-      // Fetch all posts for the user's feed
-      const response = await fetch(`${API_BASE_URL}/api/posts`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch posts")
-      }
-
-      const data = await response.json()
+      // Fetch all posts for the user's feed using API service
+      const data = await postApi.getAllPosts()
 
       // For the main feed, only show approved posts
       const approvedPosts = data.filter((post) => post.status === "approved")
       setPosts(approvedPosts)
 
-      // Fetch user's own posts (including pending and rejected)
-      const userPostsResponse = await fetch(`${API_BASE_URL}/api/posts/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!userPostsResponse.ok) {
-        throw new Error("Failed to fetch user posts")
-      }
-
-      const userPostsData = await userPostsResponse.json()
+      // Fetch user's own posts (including pending and rejected) using API service
+      const userPostsData = await postApi.getUserPosts()
       setMyPosts(userPostsData)
     } catch (error) {
       console.error("Error fetching posts:", error)
