@@ -107,7 +107,7 @@ function Register() {
 
     try {
       // Send OTP to the email
-      const response = await fetch("http://localhost:5000/api/auth/send-otp", {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +139,7 @@ function Register() {
 
     try {
       // Verify OTP
-      const verifyResponse = await fetch("http://localhost:5000/api/auth/verify-otp", {
+      const verifyResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,7 +158,7 @@ function Register() {
       const formattedDOB = `${formData.year}-${formData.month.padStart(2, "0")}-${formData.day.padStart(2, "0")}`
 
       // Register the user
-      const registerResponse = await fetch("http://localhost:5000/api/auth/register", {
+      const registerResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

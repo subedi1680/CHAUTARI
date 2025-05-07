@@ -54,7 +54,7 @@ function ForgotPassword() {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/forgot-password", {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -88,7 +88,7 @@ function ForgotPassword() {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/verify-reset-otp", {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/verify-reset-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp }),
@@ -134,7 +134,7 @@ function ForgotPassword() {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/reset-password", {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp, newPassword }),
