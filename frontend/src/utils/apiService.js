@@ -1,193 +1,33 @@
-import { userSession, adminSession, getApiBaseUrl } from "./sessionManager"
 import { API_BASE_URL } from "../config"
+import { userSession, adminSession } from "./sessionManager"
 
-const API_BASE_URL_OLD = getApiBaseUrl()
-
-/**
- * Generic API service for making authenticated requests
- */
-class ApiService {
-  /**
-   * Make an authenticated API request
-   * @param {string} endpoint - API endpoint
-   * @param {Object} options - Fetch options
-   * @param {boolean} isAdmin - Whether to use admin token
-   * @returns {Promise} - Fetch promise
-   */
-  static async fetchWithAuth(endpoint, options = {}, isAdmin = false) {
-    const token = isAdmin ? adminSession.getToken() : userSession.getToken()
-
-    if (!token) {
-      throw new Error("Authentication required")
-    }
-
-    const url = `${API_BASE_URL_OLD}${endpoint}`
-
-    // Set up headers with authentication
-    const headers = {
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-    }
-
-    // If sending JSON data, set content type
-    if (options.body && !(options.body instanceof FormData)) {
-      headers["Content-Type"] = "application/json"
-    }
-
+// Helper function to handle API errors
+const handleApiError = async (response) => {
+  if (!response.ok) {
+    // Try to get error message from response
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      })
-
-      // Handle 401 Unauthorized errors
-      if (response.status === 401) {
-        // Clear session
-        if (isAdmin) {
-          adminSession.clear()
-        } else {
-          userSession.clear()
-        }
-
-        throw new Error("Session expired. Please log in again.")
-      }
-
-      // Parse response
-      let data
-      const contentType = response.headers.get("content-type")
-      if (contentType && contentType.includes("application/json")) {
-        try {
-          data = await response.json()
-        } catch (e) {
-          console.error("Error parsing JSON response:", e)
-          data = { msg: "Invalid response format" }
-        }
-      } else {
-        data = await response.text()
-      }
-
-      // Handle unsuccessful responses
-      if (!response.ok) {
-        const error = new Error(data.msg || "API request failed")
-        error.status = response.status
-        error.data = data
-        throw error
-      }
-
-      return data
-    } catch (error) {
-      console.error(`API request failed for ${url}:`, error)
-      throw error
+      const errorData = await response.json()
+      throw new Error(errorData.msg || `API error: ${response.status}`)
+    } catch (e) {
+      // If parsing JSON fails, throw generic error
+      throw new Error(`API error: ${response.status} ${response.statusText}`)
     }
   }
-
-  /**
-   * Make a public API request (no authentication)
-   * @param {string} endpoint - API endpoint
-   * @param {Object} options - Fetch options
-   * @returns {Promise} - Fetch promise
-   */
-  static async fetchPublic(endpoint, options = {}) {
-    const url = `${API_BASE_URL_OLD}${endpoint}`
-
-    // Set content type for JSON requests
-    const headers = { ...options.headers }
-    if (options.body && !(options.body instanceof FormData) && !headers["Content-Type"]) {
-      headers["Content-Type"] = "application/json"
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      })
-
-      // Parse response
-      let data
-      const contentType = response.headers.get("content-type")
-      if (contentType && contentType.includes("application/json")) {
-        try {
-          data = await response.json()
-        } catch (e) {
-          console.error("Error parsing JSON response:", e)
-          data = { msg: "Invalid response format" }
-        }
-      } else {
-        data = await response.text()
-      }
-
-      // Handle unsuccessful responses
-      if (!response.ok) {
-        const error = new Error(data.msg || "API request failed")
-        error.status = response.status
-        error.data = data
-        throw error
-      }
-
-      return data
-    } catch (error) {
-      console.error(`API request failed for ${url}:`, error)
-      throw error
-    }
-  }
+  return response.json()
 }
 
-/**
- * User API service
- */
+// Helper function to handle network errors
+const handleNetworkError = (error) => {
+  console.error("Network error:", error)
+  throw new Error("Network error. Please check your connection and try again.")
+}
+
+// User API service
 export const userApi = {
-  // Authentication
-  login: async (username, password) => {
-    const data = await ApiService.fetchPublic("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    })
-
-    // Store token and user data
-    userSession.setToken(data.token, data.user)
-
-    return data
-  },
-
-  register: async (userData) => {
-    return ApiService.fetchPublic("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify(userData),
-    })
-  },
-
-  sendOtp: async (email, username, password) => {
-    return ApiService.fetchPublic("/api/auth/send-otp", {
-      method: "POST",
-      body: JSON.stringify({ email, username, password }),
-    })
-  },
-
-  verifyOtp: async (email, otp) => {
-    return ApiService.fetchPublic("/api/auth/verify-otp", {
-      method: "POST",
-      body: JSON.stringify({ email, otp }),
-    })
-  },
-
-  forgotPassword: async (email) => {
-    return ApiService.fetchPublic("/api/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    })
-  },
-
-  resetPassword: async (email, otp, newPassword) => {
-    return ApiService.fetchPublic("/api/auth/reset-password", {
-      method: "POST",
-      body: JSON.stringify({ email, otp, newPassword }),
-    })
-  },
-
-  // User profile
+  // Get user profile
   getProfile: async () => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
@@ -195,127 +35,226 @@ export const userApi = {
           Authorization: `Bearer ${token}`,
         },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error fetching user profile:", error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Update user profile
-  updateProfile: async (userData) => {
+  updateProfile: async (profileData) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(profileData),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error updating user profile:", error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Update user avatar
   updateAvatar: async (formData) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
-        method: "PUT",
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
         body: formData,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error updating avatar:", error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
-  // Posts
-  getPosts: async (filters = {}) => {
-    const queryParams = new URLSearchParams()
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        queryParams.append(key, value)
-      }
-    })
+  // Remove user avatar
+  removeAvatar: async () => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
 
-    const queryString = queryParams.toString()
-    const endpoint = `/api/posts${queryString ? `?${queryString}` : ""}`
-
-    return ApiService.fetchWithAuth(endpoint)
+      const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  getPost: async (postId) => {
-    return ApiService.fetchWithAuth(`/api/posts/${postId}`)
+  // Change user password
+  changePassword: async (passwordData) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/password`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(passwordData),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  createPost: async (formData) => {
-    return ApiService.fetchWithAuth("/api/posts", {
-      method: "POST",
-      body: formData, // FormData for file upload
-    })
+  // Get user activity
+  getActivity: async () => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/activity`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  updatePost: async (postId, formData) => {
-    return ApiService.fetchWithAuth(`/api/posts/${postId}`, {
-      method: "PUT",
-      body: formData, // FormData for file upload
-    })
+  // Get user's posts
+  getUserPosts: async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/posts`)
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  deletePost: async (postId) => {
-    return ApiService.fetchWithAuth(`/api/posts/${postId}`, {
-      method: "DELETE",
-    })
+  // Get current user's posts (including pending/rejected)
+  getCurrentUserPosts: async () => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/me/posts`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  // Comments
-  getComments: async (postId) => {
-    return ApiService.fetchWithAuth(`/api/posts/${postId}/comments`)
+  // Get user's saved posts
+  getSavedPosts: async () => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/me/saved`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  addComment: async (postId, content) => {
-    return ApiService.fetchWithAuth(`/api/posts/${postId}/comments`, {
-      method: "POST",
-      body: JSON.stringify({ content }),
-    })
+  // Toggle save/unsave post
+  toggleSavePost: async (postId) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/posts/${postId}/save`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  // Notifications
+  // Check if post is saved
+  checkPostSaved: async (postId) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/posts/${postId}/saved`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Get user's preferred categories
+  getUserCategories: async () => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/me/categories`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Update user's preferred categories
+  updateUserCategories: async (categories) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/users/me/categories`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ categories }),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Get user's notifications
   getNotifications: async () => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/notifications`, {
@@ -324,21 +263,14 @@ export const userApi = {
         },
       })
 
-      if (!response.ok) {
-        // Special handling for 404 - might mean the endpoint isn't implemented yet
-        if (response.status === 404) {
-          console.warn("Notifications endpoint not found. This feature might not be implemented yet.")
-          return []
-        }
-
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
+      if (response.status === 404) {
+        console.log("Notifications endpoint not available")
+        return []
       }
 
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
       console.error("Error fetching notifications:", error)
-      // Return empty array instead of throwing to prevent UI disruption
       return []
     }
   },
@@ -346,7 +278,7 @@ export const userApi = {
   // Mark notification as read
   markNotificationAsRead: async (notificationId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
@@ -356,29 +288,22 @@ export const userApi = {
         },
       })
 
-      if (!response.ok) {
-        // Special handling for 404 - might mean the endpoint isn't implemented yet
-        if (response.status === 404) {
-          console.warn("Mark notification endpoint not found. This feature might not be implemented yet.")
-          return { success: true }
-        }
-
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
+      if (response.status === 404) {
+        console.log("Notification read endpoint not available")
+        return { success: false }
       }
 
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
       console.error("Error marking notification as read:", error)
-      // Return success to prevent UI disruption
-      return { success: false, error: error.message }
+      return { success: false }
     }
   },
 
   // Mark all notifications as read
   markAllNotificationsAsRead: async () => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
@@ -388,81 +313,81 @@ export const userApi = {
         },
       })
 
-      if (!response.ok) {
-        // Special handling for 404 - might mean the endpoint isn't implemented yet
-        if (response.status === 404) {
-          console.warn("Mark all notifications endpoint not found. This feature might not be implemented yet.")
-          return { success: true }
-        }
-
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
+      if (response.status === 404) {
+        console.log("Mark all notifications endpoint not available")
+        return { success: false }
       }
 
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
-      // Return success to prevent UI disruption
-      return { success: false, error: error.message }
+      return { success: false }
     }
   },
 
-  // Update user categories
-  updateCategories: async (categories) => {
+  // Get user by ID (public profile)
+  getUserById: async (userId) => {
     try {
-      const token = sessionStorage.getItem("token")
-      const userId = sessionStorage.getItem("userId")
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`)
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching user data:", error)
+      return null
+    }
+  },
+
+  // Get user stats
+  getUserStats: async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/stats`)
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching user stats:", error)
+      return {
+        posts: 0,
+        comments: 0,
+        replies: 0,
+        joinDate: new Date(),
+      }
+    }
+  },
+
+  // Download user data
+  downloadUserData: async () => {
+    try {
+      const token = userSession.getToken()
+      const userId = userSession.getUserId()
       if (!token || !userId) throw new Error("No authentication token or user ID")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
-        method: "PUT",
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}/download-data`, {
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ categories }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error updating categories:", error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
-  // Check user ban status
-  checkBanStatus: async () => {
+  // Delete user account
+  deleteAccount: async (password) => {
     try {
-      const token = sessionStorage.getItem("token")
-      if (!token) throw new Error("No authentication token")
+      const token = userSession.getToken()
+      const userId = userSession.getUserId()
+      if (!token || !userId) throw new Error("No authentication token or user ID")
 
-      const response = await fetch(`${API_BASE_URL}/api/users/ban-status`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+        method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({ password }),
       })
-
-      if (!response.ok) {
-        // Special handling for 404 - might mean the endpoint isn't implemented yet
-        if (response.status === 404) {
-          console.warn("Ban status endpoint not found. This feature might not be implemented yet.")
-          return { isBanned: false }
-        }
-
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error checking ban status:", error)
-      // Return not banned to prevent UI disruption
-      return { isBanned: false }
+      return handleNetworkError(error)
     }
   },
 }
@@ -470,45 +395,18 @@ export const userApi = {
 // Post API service
 export const postApi = {
   // Get all posts
-  getAllPosts: async () => {
+  getAllPosts: async (page = 1, limit = 10, category = null) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/posts`)
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
+      let url = `${API_BASE_URL}/api/posts?page=${page}&limit=${limit}`
+      if (category) {
+        url += `&category=${category}`
       }
 
-      return await response.json()
+      const response = await fetch(url)
+      return handleApiError(response)
     } catch (error) {
       console.error("Error fetching posts:", error)
-      // Return empty array to prevent UI disruption
-      return []
-    }
-  },
-
-  // Get user posts
-  getUserPosts: async () => {
-    try {
-      const token = sessionStorage.getItem("token")
-      if (!token) throw new Error("No authentication token")
-
-      const response = await fetch(`${API_BASE_URL}/api/posts/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("Error fetching user posts:", error)
-      // Return empty array to prevent UI disruption
-      return []
+      return { posts: [], totalPages: 0 }
     }
   },
 
@@ -516,77 +414,57 @@ export const postApi = {
   getPostById: async (postId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`)
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error fetching post ${postId}:`, error)
-      throw error
+      console.error("Error fetching post:", error)
+      return null
     }
   },
 
   // Create new post
   createPost: async (postData) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/posts`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(postData),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error creating post:", error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Update post
   updatePost: async (postId, postData) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(postData),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error updating post ${postId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Delete post
   deletePost: async (postId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
@@ -595,66 +473,65 @@ export const postApi = {
           Authorization: `Bearer ${token}`,
         },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error deleting post ${postId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Like post
   likePost: async (postId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/like`, {
-        method: "POST",
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error liking post ${postId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Dislike post
   dislikePost: async (postId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/dislike`, {
-        method: "POST",
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error disliking post ${postId}:`, error)
-      throw error
+      return handleNetworkError(error)
+    }
+  },
+
+  // Report post
+  reportPost: async (postId, reportData) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/reports/post/${postId}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reportData),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
     }
   },
 }
@@ -665,307 +542,645 @@ export const commentApi = {
   getComments: async (postId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`)
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error fetching comments for post ${postId}:`, error)
-      // Return empty array to prevent UI disruption
+      console.error("Error fetching comments:", error)
       return []
     }
   },
 
   // Add comment to post
-  addComment: async (postId, commentData) => {
+  addComment: async (postId, content) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(commentData),
+        body: JSON.stringify({ content }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error adding comment to post ${postId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Update comment
-  updateComment: async (postId, commentId, commentData) => {
+  updateComment: async (commentId, content) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments/${commentId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(commentData),
+        body: JSON.stringify({ content }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error updating comment ${commentId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Delete comment
-  deleteComment: async (postId, commentId) => {
+  deleteComment: async (commentId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments/${commentId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error deleting comment ${commentId}:`, error)
-      throw error
+      return handleNetworkError(error)
+    }
+  },
+
+  // Like comment
+  likeComment: async (commentId) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/like`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Dislike comment
+  dislikeComment: async (commentId) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/dislike`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Report comment
+  reportComment: async (commentId, reportData) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/reports/comment/${commentId}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reportData),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
     }
   },
 }
 
 // Reply API service
 export const replyApi = {
-  // Add reply to comment
-  addReply: async (postId, commentId, replyData) => {
+  // Get replies for a comment
+  getReplies: async (commentId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`)
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching replies:", error)
+      return []
+    }
+  },
+
+  // Add reply to comment
+  addReply: async (commentId, content) => {
+    try {
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments/${commentId}/replies`, {
+      const response = await fetch(`${API_BASE_URL}/api/comments/${commentId}/replies`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(replyData),
+        body: JSON.stringify({ content }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error adding reply to comment ${commentId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Update reply
-  updateReply: async (postId, commentId, replyId, replyData) => {
+  updateReply: async (replyId, content) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(replyData),
+        body: JSON.stringify({ content }),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error updating reply ${replyId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 
   // Delete reply
-  deleteReply: async (postId, commentId, replyId) => {
+  deleteReply: async (replyId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error(`Error deleting reply ${replyId}:`, error)
-      throw error
+      return handleNetworkError(error)
     }
   },
-}
 
-// Report API service
-export const reportApi = {
-  // Create report
-  createReport: async (reportData) => {
+  // Like reply
+  likeReply: async (replyId) => {
     try {
-      const token = sessionStorage.getItem("token")
+      const token = userSession.getToken()
       if (!token) throw new Error("No authentication token")
 
-      const response = await fetch(`${API_BASE_URL}/api/reports`, {
+      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}/like`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Dislike reply
+  dislikeReply: async (replyId) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/replies/${replyId}/dislike`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Report reply
+  reportReply: async (replyId, reportData) => {
+    try {
+      const token = userSession.getToken()
+      if (!token) throw new Error("No authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/reports/reply/${replyId}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(reportData),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`)
-      }
-
-      return await response.json()
+      return handleApiError(response)
     } catch (error) {
-      console.error("Error creating report:", error)
-      throw error
+      return handleNetworkError(error)
     }
   },
 }
 
-/**
- * Admin API service
- */
-export const adminApi = {
-  // Authentication
-  sendOtp: async (email) => {
-    return ApiService.fetchPublic("/api/admin/send-otp", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    })
-  },
-
-  verifyOtp: async (email, otp) => {
-    const data = await ApiService.fetchPublic("/api/admin/verify-otp", {
-      method: "POST",
-      body: JSON.stringify({ email, otp }),
-    })
-
-    // Store token and admin data
-    adminSession.setToken(data.token, data.admin)
-
-    return data
-  },
-
-  // Posts management
-  getPendingPosts: async () => {
-    return ApiService.fetchWithAuth("/api/admin/posts/pending", {}, true)
-  },
-
-  getAllPosts: async (filters = {}) => {
-    const queryParams = new URLSearchParams()
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        queryParams.append(key, value)
-      }
-    })
-
-    const queryString = queryParams.toString()
-    const endpoint = `/api/admin/posts${queryString ? `?${queryString}` : ""}`
-
-    return ApiService.fetchWithAuth(endpoint, {}, true)
-  },
-
-  getPost: async (postId) => {
-    return ApiService.fetchWithAuth(`/api/admin/posts/${postId}`, {}, true)
-  },
-
-  approvePost: async (postId) => {
-    return ApiService.fetchWithAuth(
-      `/api/admin/posts/${postId}/approve`,
-      {
-        method: "PUT",
-      },
-      true,
-    )
-  },
-
-  rejectPost: async (postId, reason) => {
-    return ApiService.fetchWithAuth(
-      `/api/admin/posts/${postId}/reject`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ reason }),
-      },
-      true,
-    )
-  },
-
-  // Admin management
-  getStats: async () => {
-    return ApiService.fetchWithAuth("/api/admin/stats", {}, true)
-  },
-
-  getAllAdmins: async () => {
-    return ApiService.fetchWithAuth("/api/admin/all", {}, true)
-  },
-
-  addAdmin: async (email, role) => {
-    return ApiService.fetchWithAuth(
-      "/api/admin/add",
-      {
+// Auth API service
+export const authApi = {
+  // Register new user
+  register: async (userData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
-        body: JSON.stringify({ email, role }),
-      },
-      true,
-    )
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 
-  removeAdmin: async (adminId) => {
-    return ApiService.fetchWithAuth(
-      `/api/admin/${adminId}`,
-      {
-        method: "DELETE",
-      },
-      true,
-    )
+  // Login user
+  login: async (credentials) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(credentials),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Request password reset
+  forgotPassword: async (email) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Reset password with token
+  resetPassword: async (token, newPassword) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token, newPassword }),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Verify email with token
+  verifyEmail: async (token) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-email/${token}`)
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Resend verification email
+  resendVerification: async (email) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/resend-verification`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+}
+
+// Admin API service
+export const adminApi = {
+  // Admin login
+  login: async (credentials) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(credentials),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Get dashboard stats
+  getDashboardStats: async () => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/dashboard`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error)
+      return {
+        totalUsers: 0,
+        totalPosts: 0,
+        pendingPosts: 0,
+        totalComments: 0,
+        totalReports: 0,
+      }
+    }
+  },
+
+  // Get all posts (admin view)
+  getAllPosts: async (page = 1, limit = 10, status = null) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      let url = `${API_BASE_URL}/api/admin/posts?page=${page}&limit=${limit}`
+      if (status) {
+        url += `&status=${status}`
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching admin posts:", error)
+      return { posts: [], totalPages: 0 }
+    }
+  },
+
+  // Get post by ID (admin view)
+  getPostById: async (postId) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching admin post:", error)
+      return null
+    }
+  },
+
+  // Update post status
+  updatePostStatus: async (postId, status, message = "") => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/posts/${postId}/status`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status, message }),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Get all reports
+  getAllReports: async (page = 1, limit = 10, status = null) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      let url = `${API_BASE_URL}/api/admin/reports?page=${page}&limit=${limit}`
+      if (status) {
+        url += `&status=${status}`
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching reports:", error)
+      return { reports: [], totalPages: 0 }
+    }
+  },
+
+  // Get report by ID
+  getReportById: async (reportId) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching report:", error)
+      return null
+    }
+  },
+
+  // Update report status
+  updateReportStatus: async (reportId, status, action = "") => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/reports/${reportId}/status`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status, action }),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Get all users (admin view)
+  getAllUsers: async (page = 1, limit = 10, query = "") => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      let url = `${API_BASE_URL}/api/admin/users?page=${page}&limit=${limit}`
+      if (query) {
+        url += `&query=${encodeURIComponent(query)}`
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching users:", error)
+      return { users: [], totalPages: 0 }
+    }
+  },
+
+  // Get user by ID (admin view)
+  getUserById: async (userId) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching user:", error)
+      return null
+    }
+  },
+
+  // Ban user
+  banUser: async (userId, banData) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/ban`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(banData),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Unban user
+  unbanUser: async (userId) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unban`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
+  },
+
+  // Get user activity (admin view)
+  getUserActivity: async (userId) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/activity`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching user activity:", error)
+      return []
+    }
+  },
+
+  // Get admin settings
+  getSettings: async () => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/settings`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return handleApiError(response)
+    } catch (error) {
+      console.error("Error fetching admin settings:", error)
+      return {}
+    }
+  },
+
+  // Update admin settings
+  updateSettings: async (settings) => {
+    try {
+      const token = adminSession.getToken()
+      if (!token) throw new Error("No admin authentication token")
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/settings`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settings),
+      })
+      return handleApiError(response)
+    } catch (error) {
+      return handleNetworkError(error)
+    }
   },
 }

@@ -1,5 +1,21 @@
 const express = require("express")
-const { getUserProfile, getUserActivity, updateUserAvatar, removeUserAvatar } = require("../controllers/userController")
+const {
+  getUserProfile,
+  getUserActivity,
+  updateUserAvatar,
+  removeUserAvatar,
+  getUserById,
+  updateUserProfile,
+  changePassword,
+  getUserPosts,
+  getCurrentUserPosts,
+  getSavedPosts,
+  toggleSavePost,
+  checkPostSaved,
+  getUserCategories,
+  updateUserCategories,
+  getUserStats,
+} = require("../controllers/userController")
 const authMiddleware = require("../middlewares/authMiddleware")
 const User = require("../models/User")
 const bcrypt = require("bcryptjs")
@@ -24,6 +40,9 @@ const upload = multer({
 // Route to get user profile
 router.get("/profile", authMiddleware, getUserProfile)
 
+// Route to get user by ID (public profile)
+router.get("/:id", getUserById)
+
 // Route to get user activity log
 router.get("/activity", authMiddleware, getUserActivity)
 
@@ -32,6 +51,31 @@ router.post("/avatar", authMiddleware, upload.single("avatar"), updateUserAvatar
 
 // Add a route for avatar removal
 router.delete("/avatar", authMiddleware, removeUserAvatar)
+
+// Add a route for checking user ban status
+router.get("/ban-status", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" })
+    }
+
+    // Check if user is banned
+    if (user.isBanned) {
+      return res.json({
+        isBanned: true,
+        banReason: user.banReason || "Violation of community guidelines",
+        banExpiresAt: user.banExpiresAt,
+      })
+    }
+
+    // User is not banned
+    res.json({ isBanned: false })
+  } catch (error) {
+    console.error("Error checking ban status:", error)
+    res.status(500).json({ msg: "Server Error" })
+  }
+})
 
 // Route to update user categories (after the user selects categories)
 router.put("/:id/categories", authMiddleware, async (req, res) => {
@@ -61,6 +105,36 @@ router.put("/:id/categories", authMiddleware, async (req, res) => {
     res.status(500).json({ msg: "Server Error" })
   }
 })
+
+// Update user profile
+router.put("/profile", authMiddleware, updateUserProfile)
+
+// Change password
+router.put("/password", authMiddleware, changePassword)
+
+// Get user posts
+router.get("/:id/posts", getUserPosts)
+
+// Get current user's posts
+router.get("/me/posts", authMiddleware, getCurrentUserPosts)
+
+// Get saved posts
+router.get("/me/saved", authMiddleware, getSavedPosts)
+
+// Toggle save post
+router.put("/posts/:id/save", authMiddleware, toggleSavePost)
+
+// Check if post is saved
+router.get("/posts/:id/saved", authMiddleware, checkPostSaved)
+
+// Get user categories
+router.get("/me/categories", authMiddleware, getUserCategories)
+
+// Update user categories
+router.put("/me/categories", authMiddleware, updateUserCategories)
+
+// Get user stats
+router.get("/:id/stats", getUserStats)
 
 // Update the profile update route to remove bio
 router.put("/:id/profile", authMiddleware, upload.single("avatar"), async (req, res) => {
