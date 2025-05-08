@@ -8,7 +8,9 @@ import { io } from "socket.io-client"
 import "./PostDetails.css"
 import UserAvatar from "../components/UserAvatar"
 import ReportModal from "../components/ReportModal"
-import { API_BASE_URL, SOCKET_URL } from "../config"
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const socket = io(API_BASE_URL, { withCredentials: true })
 
 const formatTimeAgo = (dateString) => {
   const date = new Date(dateString)
@@ -62,8 +64,6 @@ function PostDetails() {
     fetchPost()
     fetchComments()
 
-    const socket = io(SOCKET_URL, { withCredentials: true })
-
     socket.on("postReaction", (updatedPost) => {
       if (updatedPost._id === postId) {
         setPost(updatedPost)
@@ -102,7 +102,6 @@ function PostDetails() {
       socket.off("deleteComment")
       socket.off("newReply")
       socket.off("deleteReply")
-      socket.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId])
@@ -238,9 +237,7 @@ function PostDetails() {
       setComments((prev) => [createdComment, ...prev])
 
       // Emit commentCount update
-      const socket = io(SOCKET_URL, { withCredentials: true })
       socket.emit("commentCountUpdated", { postId: postId, action: "add" })
-      socket.disconnect()
 
       setNewComment("")
       setCommentImage(null)
@@ -250,17 +247,6 @@ function PostDetails() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleReplyInputChange = (commentId, type, value) => {
-    setReplyInputs((prev) => {
-      const updatedInputs = { ...prev }
-      if (!updatedInputs[commentId]) {
-        updatedInputs[commentId] = {}
-      }
-      updatedInputs[commentId][type] = value
-      return updatedInputs
-    })
   }
 
   const handleReplySubmit = async (e, commentId) => {
@@ -323,10 +309,10 @@ function PostDetails() {
       setComments((prev) => prev.filter((comment) => comment._id !== commentId))
 
       // Emit commentCount update
-      const socket = io(SOCKET_URL, { withCredentials: true })
       socket.emit("commentCountUpdated", { postId: postId, action: "remove" })
+
+      // Also emit an event to update notifications in real-time
       socket.emit("contentDeleted", { type: "comment", commentId })
-      socket.disconnect()
     } catch (err) {
       setError(err.message)
       console.error("Error deleting comment:", err)
@@ -350,12 +336,17 @@ function PostDetails() {
       }))
 
       // Emit an event to update notifications in real-time
-      const socket = io(SOCKET_URL, { withCredentials: true })
       socket.emit("contentDeleted", { type: "reply", replyId, commentId })
-      socket.disconnect()
     } catch (err) {
       console.error(err.message)
     }
+  }
+
+  const handleReplyInputChange = (commentId, field, value) => {
+    setReplyInputs((prev) => ({
+      ...prev,
+      [commentId]: { ...prev[commentId], [field]: value },
+    }))
   }
 
   const handleImageClick = (imageSrc) => {
@@ -429,9 +420,7 @@ function PostDetails() {
       if (!res.ok) throw new Error("Failed to delete post")
 
       // Emit an event to update notifications in real-time
-      const socket = io(SOCKET_URL, { withCredentials: true })
       socket.emit("contentDeleted", { type: "post", postId })
-      socket.disconnect()
 
       navigate("/home")
     } catch (err) {

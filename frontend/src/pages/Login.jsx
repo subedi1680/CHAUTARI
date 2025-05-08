@@ -5,7 +5,6 @@ import { useState, useContext } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import UserContext from "../components/UserContext"
 import "bootstrap-icons/font/bootstrap-icons.css"
-import { API_BASE_URL } from "../config"
 
 function Login() {
   const [username, setUsername] = useState("")
@@ -14,6 +13,7 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { categorySetupCompleted, updateAvatar } = useContext(UserContext)
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
 
   const handleSubmit = async (e) => {
     e.preventDefault()

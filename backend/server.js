@@ -1,13 +1,4 @@
-// Add this at the beginning of your server.js file
-const requiredEnvVars = ["MONGO_URI", "JWT_SECRET", "EMAIL_USER", "EMAIL_PASSWORD", "FRONTEND_URL"]
-
-const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar])
-
-if (missingEnvVars.length > 0) {
-  console.error("❌ Missing required environment variables:", missingEnvVars.join(", "))
-  console.error("Please check your .env file and make sure all required variables are set.")
-  process.exit(1)
-}
+// server.js
 
 const express = require("express")
 const mongoose = require("mongoose")
@@ -16,12 +7,9 @@ const cors = require("cors")
 const http = require("http")
 const { Server } = require("socket.io")
 const nodemailer = require("nodemailer")
-const jwt = require("jsonwebtoken")
+const jwt = require("jsonwebtoken") // Add jwt
 
 dotenv.config()
-
-// ✅ Normalize frontend URL (remove trailing slash if any)
-const allowedOrigin = process.env.FRONTEND_URL?.replace(/\/$/, "") || "*"
 
 // Connect to MongoDB first, before importing routes
 mongoose
@@ -40,8 +28,8 @@ function startServer() {
   const commentRoutes = require("./routes/commentRoutes")
   const replyRoutes = require("./routes/replyRoutes")
   const notificationRoutes = require("./routes/notificationRoutes")
-  const adminRoutes = require("./routes/adminRoutes")
-  const reportRoutes = require("./routes/reportRoutes")
+  const adminRoutes = require("./routes/adminRoutes") // Add admin routes
+  const reportRoutes = require("./routes/reportRoutes") // Add report routes
   const userManagementRoutes = require("./routes/userManagementRoutes")
 
   const app = express()
@@ -50,13 +38,14 @@ function startServer() {
   // Create HTTP server for socket.io
   const server = http.createServer(app)
 
-  // ✅ Set up Socket.io with normalized origin
+  // Set up Socket.io
   const io = new Server(server, {
     cors: {
-      origin: allowedOrigin,
+      origin: "*",
       methods: ["GET", "POST", "DELETE", "PUT"],
       credentials: true,
     },
+    // Add these options for better performance
     transports: ["websocket", "polling"],
     pingTimeout: 30000,
     pingInterval: 25000,
@@ -64,35 +53,47 @@ function startServer() {
     maxHttpBufferSize: 1e8,
   })
 
+  // Make io available globally
   global.io = io
 
-  // Socket.io connection handling
+  // Set up Socket.io connection handling
   io.on("connection", (socket) => {
     console.log("New client connected:", socket.id)
 
+    // Get userId from query params
     const userId = socket.handshake.query.userId
 
     if (userId) {
+      // Join a room with the user's ID for private notifications
       socket.join(userId)
       console.log(`User ${userId} joined their private room`)
+
+      // Confirm connection to client
       socket.emit("socketConnected", { userId, socketId: socket.id })
     }
 
+    // Handle disconnection
     socket.on("disconnect", () => {
       console.log("Client disconnected:", socket.id)
     })
 
+    // Check if this is an admin connection
     const adminToken = socket.handshake.query.adminToken
 
     if (adminToken) {
       try {
+        // Verify admin token
         const decoded = jwt.verify(adminToken, process.env.JWT_SECRET)
         const adminId = decoded.admin.id
 
         console.log(`Admin connected: ${adminId}`)
+
+        // Join admin room
         socket.join("admins")
 
+        // Handle admin-specific events
         socket.on("postStatusChanged", (data) => {
+          // Broadcast to all admins
           io.to("admins").emit("postStatusChanged", data)
         })
 
@@ -105,26 +106,17 @@ function startServer() {
     }
   })
 
-  // ✅ Apply CORS with normalized origin
+  // Middlewares
   app.use(
     cors({
-      origin: allowedOrigin,
+      origin: "*",
       credentials: true,
     }),
   )
-
-  // ✅ Ensure preflight requests are handled
-  app.options(
-    "*",
-    cors({
-      origin: allowedOrigin,
-      credentials: true,
-    }),
-  )
-
   app.use(express.json({ limit: "50mb" }))
   app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 
+  // Make io available to routes
   app.use((req, res, next) => {
     req.io = io
     next()
@@ -137,11 +129,14 @@ function startServer() {
   app.use("/api", commentRoutes)
   app.use("/api", replyRoutes)
   app.use("/api/notifications", notificationRoutes)
-  app.use("/api/admin", adminRoutes)
-  app.use("/api/reports", reportRoutes)
+  app.use("/api/admin", adminRoutes) // Add admin routes
+  app.use("/api/reports", reportRoutes) // Register report routes
   app.use("/api/admin/users", userManagementRoutes)
+
+  // Make sure the admin user management routes are properly registered
   app.use("/api/admin/users", require("./routes/userManagementRoutes"))
 
+  // Test route for email configuration
   app.get("/api/test-email", (req, res) => {
     const emailConfig = {
       service: process.env.EMAIL_SERVICE,
@@ -155,5 +150,6 @@ function startServer() {
     })
   })
 
+  // Start server
   server.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`))
 }

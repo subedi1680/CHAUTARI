@@ -16,7 +16,6 @@ import UserAvatar from "../components/UserAvatar"
 import UserContext from "../components/UserContext"
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
 
 const formatTimeAgo = (dateString) => {
   const date = new Date(dateString)
@@ -151,7 +150,7 @@ function HomePage() {
     setAvailableCategories(allCategories)
 
     // Socket listener for real-time updates
-    const socket = io(SOCKET_URL, { withCredentials: true })
+    const socket = io(API_BASE_URL, { withCredentials: true })
 
     socket.on("commentCountUpdated", ({ postId, action }) => {
       setPosts((prevPosts) =>

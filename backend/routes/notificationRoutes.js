@@ -7,16 +7,15 @@ const authMiddleware = require("../middlewares/authMiddleware")
 router.get("/", authMiddleware, notificationController.getUserNotifications)
 
 // Mark a notification as read
-router.put("/:id/read", authMiddleware, notificationController.markNotificationRead)
+router.put("/:id/read", authMiddleware, notificationController.markAsRead)
 
 // Mark all notifications as read
-router.put("/read-all", authMiddleware, notificationController.markAllNotificationsRead)
+router.put("/read-all", authMiddleware, notificationController.markAllAsRead)
 
 // Delete a notification
 router.delete("/:id", authMiddleware, notificationController.deleteNotification)
 
-// If you have a preferences update route, make sure it's implemented
-// Uncomment the following line only if `updateNotificationPreferences` exists in your controller
-// router.put("/preferences", authMiddleware, notificationController.updateNotificationPreferences)
+// Update notification preferences
+router.put("/preferences", authMiddleware, notificationController.updateNotificationPreferences)
 
 module.exports = router

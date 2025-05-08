@@ -3,12 +3,6 @@
 // API Base URL - use environment variable or fallback to localhost
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
 
-// Socket URL (same as API in this case)
-export const SOCKET_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
-
-// Frontend URL
-export const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173"
-
 // Other configuration variables can be added here
 export const APP_NAME = "CHAUTARI"
 export const FILE_UPLOAD_SIZE_LIMIT = 5 * 1024 * 1024 // 5MB
